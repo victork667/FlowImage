@@ -28,17 +28,38 @@ def apply_shape_mask(image: Image.Image, template: PhotoTemplate) -> Image.Image
     if template.shape in {"rectangular", "square"} and not template.border_radius:
         return rgba
 
-    mask = Image.new("L", rgba.size, 0)
-    draw = ImageDraw.Draw(mask)
     width, height = rgba.size
+    mask = shape_mask(template, width, height)
 
+    background = Image.new("RGBA", rgba.size, background_rgba(template))
+    background.paste(rgba, (0, 0), mask)
+    if template.transparent_background or template.background_color == "transparent":
+        background.putalpha(mask)
+    return background
+
+
+def shape_mask(template: PhotoTemplate, width: int, height: int) -> Image.Image:
+    scale = 4
+    scaled_size = (width * scale, height * scale)
+    mask = Image.new("L", scaled_size, 0)
+    draw = ImageDraw.Draw(mask)
+    box = (0, 0, scaled_size[0], scaled_size[1])
     if template.shape == "circular":
-        draw.ellipse((0, 0, width, height), fill=255)
+        diameter = min(scaled_size)
+        left = (scaled_size[0] - diameter) // 2
+        top = (scaled_size[1] - diameter) // 2
+        draw.ellipse((left, top, left + diameter, top + diameter), fill=255)
     elif template.shape == "oval":
-        draw.ellipse((0, 0, width, height), fill=255)
+        draw.ellipse(box, fill=255)
     else:
-        radius = template.border_radius if template.shape == "rounded" else 0
-        draw.rounded_rectangle((0, 0, width, height), radius=radius, fill=255)
+        radius = effective_border_radius(template, width, height) * scale
+        draw.rounded_rectangle(box, radius=radius, fill=255)
+    return mask.resize((width, height), Image.Resampling.LANCZOS)
 
-    rgba.putalpha(mask)
-    return rgba
+
+def effective_border_radius(template: PhotoTemplate, width: int, height: int) -> int:
+    if template.border_radius > 0:
+        return min(template.border_radius, min(width, height) // 2)
+    if template.shape == "rounded":
+        return max(8, min(width, height) // 10)
+    return 0

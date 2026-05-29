@@ -341,3 +341,30 @@ Para lotes grandes no Render Free, o custo de Face Mesh repetido pesa mais que a
 ### Proximos passos
 
 - Validar novo lote com 80 imagens apos o Render aplicar o ultimo commit.
+
+## 2026-05-29 - Molde arredondado exportava cantos retos
+
+### Projeto
+
+FLOWIMAGE
+
+### Tipo
+
+Bug / Imagem / Exportacao
+
+### O que foi feito
+
+Corrigida a mascara de formato arredondado. O backend agora aplica raio padrao quando o molde `rounded` esta com `border_radius=0`, suaviza a mascara em alta resolucao e compoe os cantos com a cor de fundo antes de exportar JPG. PNG transparente continua exportando alpha nos cantos.
+
+### Arquivos alterados
+
+- backend/app/services/export/mask.py
+- backend/tests/test_shape_mask.py
+
+### Aprendizado
+
+JPG nao preserva alpha; se a mascara for aplicada apenas como transparencia e depois convertida para RGB, os cantos podem voltar quadrados ou sair incorretos. Para JPG, a mascara precisa ser composta sobre a cor de fundo do molde antes da exportacao.
+
+### Proximos passos
+
+- Reprocessar uma foto com molde `rounded` no Render apos o deploy do backend.
