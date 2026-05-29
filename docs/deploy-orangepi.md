@@ -23,6 +23,26 @@ sudo journalctl -u flowimage-backend -f
 curl http://localhost:8000/health
 ```
 
+## Tunnel temporário
+
+O Orange Pi foi validado com `cloudflared` usando quick tunnel:
+
+```bash
+sudo systemctl status flowimage-tunnel
+sudo systemctl restart flowimage-tunnel
+sudo journalctl -u flowimage-tunnel -f
+```
+
+O quick tunnel gera URL `trycloudflare.com` sem conta e sem garantia de estabilidade. Se o serviço reiniciar, a URL muda e o frontend precisa ser publicado novamente com `VITE_API_BASE_URL` atualizado.
+
+Para descobrir a URL atual:
+
+```bash
+sudo journalctl -u flowimage-tunnel --no-pager | grep -o 'https://[^ ]*trycloudflare.com' | tail -1
+```
+
+Para produção, criar um tunnel nomeado com hostname em domínio próprio na Cloudflare.
+
 ## Atualizar código
 
 ```bash

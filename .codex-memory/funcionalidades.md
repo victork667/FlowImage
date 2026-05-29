@@ -716,3 +716,29 @@ No Orange Pi com Ubuntu 22.04 aarch64 e Python 3.10, `mediapipe==0.10.20` nao po
 ### Proximos passos
 
 - Configurar Cloudflare Tunnel estavel para expor o backend do Orange Pi com HTTPS.
+
+## 2026-05-29 - Tunnel temporario para Orange Pi
+
+### Projeto
+
+FLOWIMAGE
+
+### Tipo
+
+Funcionalidade / Infra / Tunnel
+
+### O que foi feito
+
+Instalado `cloudflared` no Orange Pi e criado servico `flowimage-tunnel` apontando para `http://127.0.0.1:8000`. O frontend Cloudflare Pages foi publicado usando a URL temporaria `trycloudflare.com` atual do tunnel.
+
+### Arquivos alterados
+
+- docs/deploy-orangepi.md
+
+### Aprendizado
+
+Quick Tunnel do Cloudflare funciona para validar o backend do Orange Pi via HTTPS, mas a URL muda quando o servico reinicia. Para producao, o FlowImage precisa de tunnel nomeado com dominio proprio na Cloudflare.
+
+### Proximos passos
+
+- Adicionar um dominio/subdominio na Cloudflare e converter o quick tunnel para tunnel nomeado estavel.
