@@ -283,3 +283,32 @@ Em hospedagem gratuita, cada imagem do FlowImage nao deve abrir chamadas pesadas
 ### Proximos passos
 
 - Testar lote real no Render com 5 a 10 imagens e observar se ainda ha timeout em fotos muito grandes.
+
+## 2026-05-29 - Queda nas ultimas imagens do lote
+
+### Projeto
+
+FLOWIMAGE
+
+### Tipo
+
+Bug / Lote / Performance / Render
+
+### O que foi feito
+
+Endurecido o processamento em lote para evitar falhas nas ultimas imagens. O frontend passou a reduzir imagens grandes antes do upload, fazer ate 4 tentativas com pausa crescente e aguardar entre uma imagem e outra. O backend passou a normalizar imagens muito grandes antes de rodar MediaPipe e crop.
+
+### Arquivos alterados
+
+- frontend/src/services/api.ts
+- frontend/src/pages/BatchProcess/BatchProcess.tsx
+- backend/app/services/photo_processing/memory_processor.py
+- backend/app/api/process.py
+
+### Aprendizado
+
+Em Render Free, lotes com fotos grandes podem falhar no final por acumulo de custo de rede, CPU e memoria. Para o FlowImage, lote deve trabalhar com imagens dimensionadas para processamento e backoff, mantendo a saida final no tamanho exato do molde.
+
+### Proximos passos
+
+- Se ainda houver falha acima de 8 a 10 imagens, criar processamento em fila com lote dividido internamente e pausa configuravel.

@@ -18,6 +18,8 @@ from app.services.photo_processing.processor import centered_crop, crop_with_bac
 from app.services.quality_enhancement.safe_upscale import resize_with_safe_upscale
 from app.storage.files import extension_for_format, safe_stem
 
+MAX_WORK_IMAGE_SIDE = 2600
+
 
 @dataclass
 class MemoryProcessResult:
@@ -38,7 +40,7 @@ def process_image_bytes(
     studio_auto: bool = True,
     enhance_quality: bool = False,
 ) -> MemoryProcessResult:
-    source = ImageOps.exif_transpose(Image.open(BytesIO(image_bytes))).convert("RGB")
+    source = normalize_source_image(ImageOps.exif_transpose(Image.open(BytesIO(image_bytes))).convert("RGB"))
     detection = detect_faces_from_pil(source)
     quality = analyze_photo_quality(source, detection)
 
@@ -86,7 +88,7 @@ def process_image_bytes(
 
 
 def debug_face_bytes(image_bytes: bytes) -> bytes:
-    source = ImageOps.exif_transpose(Image.open(BytesIO(image_bytes))).convert("RGB")
+    source = normalize_source_image(ImageOps.exif_transpose(Image.open(BytesIO(image_bytes))).convert("RGB"))
     detection = detect_faces_from_pil(source)
     draw = ImageDraw.Draw(source)
     if detection.selected_face:
@@ -105,6 +107,15 @@ def image_to_bytes(image: Image.Image, template: PhotoTemplate) -> bytes:
     else:
         image.save(output, output_format, optimize=True)
     return output.getvalue()
+
+
+def normalize_source_image(source: Image.Image) -> Image.Image:
+    largest_side = max(source.width, source.height)
+    if largest_side <= MAX_WORK_IMAGE_SIDE:
+        return source
+    normalized = source.copy()
+    normalized.thumbnail((MAX_WORK_IMAGE_SIDE, MAX_WORK_IMAGE_SIDE), Image.Resampling.LANCZOS)
+    return normalized
 
 
 def download_stem(filename: str) -> str:

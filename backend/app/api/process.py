@@ -11,7 +11,7 @@ from app.models import PhotoTemplate
 from app.schemas.process import AnalyzeResult, DetectionInfo, ManualAdjustments, QualityInfo
 from app.services.face_detection.detector import DetectionResult, detect_faces_from_pil
 from app.services.photo_analysis.quality import QualityAnalysis, analyze_photo_quality
-from app.services.photo_processing.memory_processor import process_image_bytes
+from app.services.photo_processing.memory_processor import normalize_source_image, process_image_bytes
 
 
 router = APIRouter(prefix="/process", tags=["process"])
@@ -41,7 +41,7 @@ async def process_single_file(
 
 @router.post("/analyze-file", response_model=AnalyzeResult)
 async def analyze_file(file: UploadFile = File(...)) -> AnalyzeResult:
-    source = ImageOps.exif_transpose(Image.open(BytesIO(await file.read()))).convert("RGB")
+    source = normalize_source_image(ImageOps.exif_transpose(Image.open(BytesIO(await file.read()))).convert("RGB"))
     detection = detect_faces_from_pil(source)
     quality = analyze_photo_quality(source, detection)
     return AnalyzeResult(detection=_detection_info(detection), quality=_quality_info(quality))

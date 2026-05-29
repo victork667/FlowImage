@@ -65,7 +65,7 @@ export function BatchProcess() {
     setError(null);
     try {
       const targetItems = onlyKey ? queue.filter((item) => item.key === onlyKey) : queue;
-      for (const item of targetItems) {
+      for (const [index, item] of targetItems.entries()) {
         setQueueStatus(item.key, { status: "uploading", uploadProgress: 1, processProgress: 0, error: null, result: undefined });
         try {
           const result = await processWithRetry(item, Number(templateId), studioAuto, enhanceQuality, setQueueStatus);
@@ -85,6 +85,7 @@ export function BatchProcess() {
             error: err instanceof Error ? err.message : "Falha ao processar.",
           });
         }
+        if (index < targetItems.length - 1) await delay(900);
       }
     } finally {
       setProcessing(false);
@@ -229,45 +230,39 @@ async function processWithRetry(
   enhanceQuality: boolean,
   setQueueStatus: (key: string, patch: Partial<QueueItem>) => void,
 ) {
-  try {
-    return await processFileWithProgress(
-      templateId,
-      item.file,
-      null,
-      (progress) => {
-        setQueueStatus(item.key, {
-          uploadProgress: progress,
-          status: progress < 100 ? "uploading" : "processing",
-          processProgress: progress >= 100 ? 35 : 0,
-        });
-      },
-      studioAuto,
-      enhanceQuality,
-    );
-  } catch (error) {
-    if (!isNetworkFailure(error)) throw error;
-    setQueueStatus(item.key, {
-      status: "uploading",
-      uploadProgress: 0,
-      processProgress: 0,
-      error: "Falha de rede. Tentando novamente...",
-    });
-    await delay(1000);
-    return processFileWithProgress(
-      templateId,
-      item.file,
-      null,
-      (progress) => {
-        setQueueStatus(item.key, {
-          uploadProgress: progress,
-          status: progress < 100 ? "uploading" : "processing",
-          processProgress: progress >= 100 ? 35 : 0,
-        });
-      },
-      studioAuto,
-      enhanceQuality,
-    );
+  const delays = [0, 1500, 3500, 6500];
+  let lastError: unknown;
+  for (let attempt = 0; attempt < delays.length; attempt += 1) {
+    if (delays[attempt] > 0) {
+      setQueueStatus(item.key, {
+        status: "uploading",
+        uploadProgress: 0,
+        processProgress: 0,
+        error: `Falha de rede. Nova tentativa ${attempt + 1}/${delays.length}...`,
+      });
+      await delay(delays[attempt]);
+    }
+    try {
+      return await processFileWithProgress(
+        templateId,
+        item.file,
+        null,
+        (progress) => {
+          setQueueStatus(item.key, {
+            uploadProgress: progress,
+            status: progress < 100 ? "uploading" : "processing",
+            processProgress: progress >= 100 ? 35 : 0,
+          });
+        },
+        studioAuto,
+        enhanceQuality,
+      );
+    } catch (error) {
+      lastError = error;
+      if (!isNetworkFailure(error)) throw error;
+    }
   }
+  throw lastError instanceof Error ? lastError : new Error("Falha de rede durante processamento.");
 }
 
 function isNetworkFailure(error: unknown) {

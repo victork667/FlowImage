@@ -95,7 +95,7 @@ export interface BlobResponse {
   analysis?: AnalyzeResult;
 }
 
-export function processFileWithProgress(
+export async function processFileWithProgress(
   templateId: number,
   file: File,
   adjustments: Record<string, number | boolean | null> | null,
@@ -103,6 +103,8 @@ export function processFileWithProgress(
   studioAuto = true,
   enhanceQuality = false,
 ): Promise<BlobResponse> {
+  onUploadProgress(1);
+  const uploadFile = await prepareImageForUpload(file);
   const form = new FormData();
   form.append("template_id", String(templateId));
   if (adjustments) form.append("adjustments", JSON.stringify(adjustments));
@@ -111,9 +113,48 @@ export function processFileWithProgress(
     form.append("smart_studio", String(studioAuto));
     form.append("enhance_quality", String(enhanceQuality));
   }
-  form.append("file", file);
+  form.append("file", uploadFile, file.name);
   const path = adjustments ? "/process/manual-adjust-file" : "/process/single-file";
   return xhrBlobRequest(`${API}${path}`, form, onUploadProgress, file.name);
+}
+
+async function prepareImageForUpload(file: File): Promise<File | Blob> {
+  if (!file.type.startsWith("image/")) return file;
+  if (file.size <= 1_800_000) return file;
+
+  try {
+    const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+    const maxSide = 2200;
+    const largestSide = Math.max(bitmap.width, bitmap.height);
+    if (largestSide <= maxSide && file.size <= 3_500_000) {
+      bitmap.close();
+      return file;
+    }
+
+    const scale = Math.min(1, maxSide / largestSide);
+    const width = Math.max(1, Math.round(bitmap.width * scale));
+    const height = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      bitmap.close();
+      return file;
+    }
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(bitmap, 0, 0, width, height);
+    bitmap.close();
+
+    const blob = await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob(resolve, "image/jpeg", 0.9);
+    });
+    if (!blob || blob.size >= file.size) return file;
+    return blob;
+  } catch {
+    return file;
+  }
 }
 
 async function blobRequest(path: string, body: FormData, originalFilename?: string): Promise<BlobResponse> {
