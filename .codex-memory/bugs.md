@@ -312,3 +312,32 @@ Em Render Free, lotes com fotos grandes podem falhar no final por acumulo de cus
 ### Proximos passos
 
 - Se ainda houver falha acima de 8 a 10 imagens, criar processamento em fila com lote dividido internamente e pausa configuravel.
+
+## 2026-05-29 - Lote grande com 80 imagens
+
+### Projeto
+
+FLOWIMAGE
+
+### Tipo
+
+Bug / Lote / Performance / Backend
+
+### O que foi feito
+
+Criado modo de lote massivo para reduzir custo por imagem. O frontend envia `batch_mode=true`, compacta fotos grandes antes do upload, faz pausas por imagem e por bloco, executa ate quatro tentativas por arquivo e realiza uma rodada final de recuperacao para falhas de rede. No backend, `batch_mode` usa a deteccao principal para crop e evita etapas extras de Face Mesh no tratamento automatico.
+
+### Arquivos alterados
+
+- frontend/src/services/api.ts
+- frontend/src/pages/BatchProcess/BatchProcess.tsx
+- backend/app/api/process.py
+- backend/app/services/photo_processing/memory_processor.py
+
+### Aprendizado
+
+Para lotes grandes no Render Free, o custo de Face Mesh repetido pesa mais que a requisicao em si. O fluxo de lote precisa ser mais leve que o processamento individual para completar volumes como 80 imagens.
+
+### Proximos passos
+
+- Validar novo lote com 80 imagens apos o Render aplicar o ultimo commit.

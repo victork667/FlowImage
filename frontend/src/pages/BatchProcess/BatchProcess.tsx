@@ -65,6 +65,7 @@ export function BatchProcess() {
     setError(null);
     try {
       const targetItems = onlyKey ? queue.filter((item) => item.key === onlyKey) : queue;
+      const recoveryItems: QueueItem[] = [];
       for (const [index, item] of targetItems.entries()) {
         setQueueStatus(item.key, { status: "uploading", uploadProgress: 1, processProgress: 0, error: null, result: undefined });
         try {
@@ -84,8 +85,41 @@ export function BatchProcess() {
             processProgress: 100,
             error: err instanceof Error ? err.message : "Falha ao processar.",
           });
+          if (!onlyKey && isNetworkFailure(err)) recoveryItems.push(item);
         }
-        if (index < targetItems.length - 1) await delay(900);
+        if (index < targetItems.length - 1) await delay((index + 1) % 15 === 0 ? 9000 : 1200);
+      }
+      if (!onlyKey && recoveryItems.length > 0) {
+        await delay(12000);
+        for (const item of recoveryItems) {
+          setQueueStatus(item.key, {
+            status: "uploading",
+            uploadProgress: 0,
+            processProgress: 0,
+            error: "Rodada final de recuperacao...",
+            result: undefined,
+          });
+          try {
+            const result = await processWithRetry(item, Number(templateId), studioAuto, enhanceQuality, setQueueStatus);
+            setQueueStatus(item.key, {
+              status: "processed",
+              uploadProgress: 100,
+              processProgress: 100,
+              filename: result.filename,
+              result,
+              analysis: result.analysis,
+              error: null,
+            });
+          } catch (err) {
+            setQueueStatus(item.key, {
+              status: "error",
+              uploadProgress: 100,
+              processProgress: 100,
+              error: err instanceof Error ? err.message : "Falha ao processar.",
+            });
+          }
+          await delay(2500);
+        }
       }
     } finally {
       setProcessing(false);
@@ -256,6 +290,7 @@ async function processWithRetry(
         },
         studioAuto,
         enhanceQuality,
+        true,
       );
     } catch (error) {
       lastError = error;

@@ -659,3 +659,33 @@ Para o FlowImage hospedado em Cloudflare + Render + Supabase, Supabase Auth e o 
 ### Proximos passos
 
 - Implementar validacao JWT no backend quando o sistema precisar de seguranca de API alem da interface.
+
+## 2026-05-29 - Interface baseada em gemini_ui
+
+### Projeto
+
+FLOWIMAGE
+
+### Tipo
+
+Funcionalidade / UI / Frontend
+
+### O que foi feito
+
+Refeito o shell visual seguindo a referencia `gemini_ui`: login em tela dividida, sidebar branca fixa, header branco com busca, usuario e alerta, fundo slate claro, botoes e campos mais simples e cards brancos com borda cinza.
+
+### Arquivos alterados
+
+- frontend/src/components/layout/AppLayout.tsx
+- frontend/src/pages/Login/Login.tsx
+- frontend/src/components/ui/Button.tsx
+- frontend/src/components/ui/Field.tsx
+- frontend/src/styles.css
+
+### Aprendizado
+
+A nova direcao visual do FlowImage e mais SaaS administrativo classico: sidebar + header fixos, fundo claro, menos glass/gradientes no app interno e gradiente concentrado no login.
+
+### Proximos passos
+
+- Refinar pagina por pagina para aproximar ainda mais cards e tabelas do layout de referencia.

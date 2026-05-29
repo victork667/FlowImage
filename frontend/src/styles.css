@@ -3,8 +3,8 @@
 @tailwind utilities;
 
 :root {
-  color: #211334;
-  background: #f7f0ff;
+  color: #111827;
+  background: #f8fafc;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
@@ -27,60 +27,40 @@ textarea {
 }
 
 .app-gradient {
-  background:
-    linear-gradient(135deg, rgba(76, 29, 149, 0.10) 0 12%, transparent 12% 100%),
-    linear-gradient(155deg, transparent 0 52%, rgba(217, 70, 239, 0.12) 52% 64%, transparent 64% 100%),
-    linear-gradient(120deg, rgba(124, 58, 237, 0.12) 0 1px, transparent 1px 100%),
-    linear-gradient(60deg, rgba(217, 70, 239, 0.08) 0 1px, transparent 1px 100%),
-    linear-gradient(135deg, #ffffff 0%, #f8f2ff 38%, #efe5ff 100%);
-  background-size: auto, auto, 64px 64px, 64px 64px, auto;
+  background: #f8fafc;
 }
 
 .glass-panel {
-  @apply relative rounded-[28px] border border-white/80 bg-white/90 shadow-[0_28px_80px_rgba(54,19,100,0.14)] backdrop-blur-xl;
+  @apply relative rounded-2xl border border-gray-100 bg-white shadow-sm;
 }
 
 .glass-panel::before {
-  content: "";
-  position: absolute;
-  inset: 0 0 auto;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(168, 85, 247, 0.62), rgba(217, 70, 239, 0.42), transparent);
-  pointer-events: none;
+  content: none;
 }
 
 .quiet-panel {
-  @apply rounded-2xl border border-white/80 bg-white/90 shadow-[0_18px_48px_rgba(54,19,100,0.08)] backdrop-blur;
+  @apply rounded-2xl border border-gray-100 bg-white shadow-sm;
 }
 
 .page-toolbar {
-  @apply sticky top-[110px] z-20 flex flex-wrap items-center justify-between gap-3 overflow-hidden rounded-[30px] border border-white/20 bg-violet-950 px-4 py-3 text-white shadow-[0_28px_70px_rgba(76,29,149,0.30)] backdrop-blur-xl sm:px-5;
-  background-image:
-    linear-gradient(110deg, rgba(255, 255, 255, 0.16), transparent 22%),
-    linear-gradient(90deg, #2e1065 0%, #6d28d9 54%, #c026d3 100%);
+  @apply flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-gray-100 bg-white px-5 py-4 text-gray-900 shadow-sm;
+  background-image: none;
 }
 
 .page-toolbar::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(120deg, transparent 0 42%, rgba(255, 255, 255, 0.18) 42% 43%, transparent 43% 100%),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.08) 0 1px, transparent 1px 100%);
-  background-size: auto, 28px 28px;
-  pointer-events: none;
+  content: none;
 }
 
 .toolbar-title {
-  @apply relative z-10 text-sm font-black uppercase tracking-normal text-white;
+  @apply text-lg font-bold tracking-normal text-gray-900;
 }
 
 .control-panel {
-  @apply glass-panel grid min-w-0 content-start gap-4 border-violet-100/80 p-5;
+  @apply glass-panel grid min-w-0 content-start gap-4 p-5;
 }
 
 .preview-panel {
-  @apply glass-panel grid min-w-0 content-start gap-4 border-violet-100/80 p-5;
+  @apply glass-panel grid min-w-0 content-start gap-4 p-5;
 }
 
 .image-stage {
@@ -95,11 +75,11 @@ textarea {
 }
 
 .section-title {
-  @apply text-lg font-black text-violet-950;
+  @apply text-lg font-bold text-gray-900;
 }
 
 .muted-text {
-  @apply text-sm font-medium text-steel;
+  @apply text-sm font-medium text-gray-500;
 }
 
 input[type="range"] {

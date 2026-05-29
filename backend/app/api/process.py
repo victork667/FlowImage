@@ -24,6 +24,7 @@ async def process_single_file(
     filename_suffix: str = Form(""),
     smart_studio: bool = Form(True),
     enhance_quality: bool = Form(False),
+    batch_mode: bool = Form(False),
     db: Session = Depends(get_db),
 ) -> StreamingResponse:
     template = _get_template(db, template_id)
@@ -35,6 +36,7 @@ async def process_single_file(
         filename_suffix=filename_suffix,
         studio_auto=smart_studio,
         enhance_quality=enhance_quality,
+        batch_mode=batch_mode,
     )
     return _image_response(result.content, result.filename, result.media_type, result.detection, result.quality)
 

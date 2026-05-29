@@ -102,6 +102,7 @@ export async function processFileWithProgress(
   onUploadProgress: (progress: number) => void,
   studioAuto = true,
   enhanceQuality = false,
+  batchMode = false,
 ): Promise<BlobResponse> {
   onUploadProgress(1);
   const uploadFile = await prepareImageForUpload(file);
@@ -112,6 +113,7 @@ export async function processFileWithProgress(
     form.append("filename_suffix", "");
     form.append("smart_studio", String(studioAuto));
     form.append("enhance_quality", String(enhanceQuality));
+    form.append("batch_mode", String(batchMode));
   }
   form.append("file", uploadFile, file.name);
   const path = adjustments ? "/process/manual-adjust-file" : "/process/single-file";

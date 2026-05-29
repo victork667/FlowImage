@@ -39,6 +39,7 @@ def process_image_bytes(
     filename_suffix: str = "",
     studio_auto: bool = True,
     enhance_quality: bool = False,
+    batch_mode: bool = False,
 ) -> MemoryProcessResult:
     source = normalize_source_image(ImageOps.exif_transpose(Image.open(BytesIO(image_bytes))).convert("RGB"))
     detection = detect_faces_from_pil(source)
@@ -49,7 +50,7 @@ def process_image_bytes(
     if preset_id:
         color_preset = db.get(ColorPreset, preset_id)
 
-    mesh_face = refined_face_box(source, detection)
+    mesh_face = detection.selected_face if batch_mode else refined_face_box(source, detection)
     if mesh_face:
         crop = calculate_crop(mesh_face, template, source.width, source.height, adjustments)
     else:
@@ -70,7 +71,7 @@ def process_image_bytes(
 
     use_studio_auto = adjustments.studio_auto if adjustments else studio_auto
     if use_studio_auto:
-        adjusted = apply_adaptive_studio(fitted, build_face_mesh_mask(fitted))
+        adjusted = apply_adaptive_studio(fitted, None if batch_mode else build_face_mesh_mask(fitted))
         adjusted = apply_color_adjustments(adjusted, None, adjustments)
     else:
         adjusted = apply_color_adjustments(fitted, color_preset, adjustments)

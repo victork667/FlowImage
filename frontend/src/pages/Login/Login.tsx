@@ -1,8 +1,7 @@
-import { FormEvent, useEffect, useState } from "react";
-import { Camera, Eye, EyeOff, Lock, Mail, UserPlus } from "lucide-react";
+import { FormEvent, ReactNode, useEffect, useState } from "react";
+import { Eye, EyeOff, Lock, Mail, User } from "lucide-react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 
-import { Button } from "../../components/ui/Button";
 import { useAuth } from "../../auth/AuthProvider";
 
 type Mode = "login" | "register";
@@ -49,118 +48,162 @@ export function Login() {
   };
 
   return (
-    <div className="app-gradient grid min-h-screen place-items-center px-4 py-8 text-ink">
-      <div className="grid w-full max-w-[1080px] overflow-hidden rounded-[34px] border border-white/80 bg-white/90 shadow-[0_32px_90px_rgba(54,19,100,0.18)] backdrop-blur-2xl lg:grid-cols-[1fr_440px]">
-        <section className="relative hidden min-h-[620px] overflow-hidden bg-violet-950 p-8 text-white lg:block">
-          <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.18),transparent_32%),linear-gradient(120deg,#2e1065,#6d28d9_54%,#d946ef)]" />
-          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.10)_0_1px,transparent_1px_100%)] bg-[length:34px_34px]" />
-          <div className="relative z-10 flex h-full flex-col justify-between">
-            <div>
-              <div className="flex items-center gap-3">
-                <div className="grid h-12 w-12 place-items-center rounded-[20px] bg-white/15 text-xl font-black shadow-2xl backdrop-blur">
-                  F
-                </div>
-                <div>
-                  <div className="text-2xl font-black">FlowImage</div>
-                  <div className="text-xs font-black uppercase text-fuchsia-100">studio</div>
-                </div>
-              </div>
-            </div>
+    <div className="flex min-h-screen bg-slate-50">
+      <section className="relative hidden w-1/2 flex-col justify-between overflow-hidden bg-gradient-to-br from-violet-900 to-purple-800 p-12 text-white lg:flex">
+        <div className="absolute -left-20 -top-20 h-96 w-96 rounded-full bg-violet-700 opacity-20 blur-3xl" />
+        <div className="absolute bottom-0 right-0 h-96 w-96 rounded-full bg-purple-600 opacity-20 blur-3xl" />
 
-            <div className="grid gap-4">
-              <div className="grid h-44 w-36 place-items-center rounded-[28px] border border-white/20 bg-white/12 shadow-[0_30px_70px_rgba(0,0,0,0.22)] backdrop-blur">
-                <Camera size={44} />
-              </div>
+        <div className="relative z-10">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white">
+              <span className="text-xl font-bold text-violet-800">F</span>
+            </div>
+            <h1 className="text-3xl font-bold tracking-tight">FlowImage</h1>
+          </div>
+          <p className="mt-2 text-sm uppercase tracking-widest text-violet-200">Studio</p>
+        </div>
+
+        <div className="relative z-10 mb-20">
+          <h2 className="text-4xl font-extrabold leading-tight">Gerencie seus ativos digitais com inteligencia e fluidez.</h2>
+          <p className="mt-4 text-lg text-violet-200">Sua plataforma central para processamento, organizacao e revisao de moldes e imagens.</p>
+        </div>
+
+        <div className="relative z-10 text-sm text-violet-300">2026 FlowImage Studio.</div>
+      </section>
+
+      <section className="flex flex-1 flex-col justify-center bg-white px-4 py-12 sm:px-6 lg:w-1/2 lg:flex-none xl:px-24">
+        <div className="mx-auto w-full max-w-sm lg:w-96">
+          <div className="lg:hidden">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-700 text-xl font-bold text-white">F</div>
               <div>
-                <h1 className="max-w-md text-4xl font-black leading-tight">Acesso ao painel de processamento.</h1>
+                <div className="text-xl font-bold leading-none text-gray-900">FlowImage</div>
+                <div className="mt-1 text-xs font-semibold uppercase tracking-wider text-violet-600">Studio</div>
               </div>
             </div>
           </div>
-        </section>
 
-        <section className="p-5 sm:p-8">
-          <div className="mb-7 flex items-center gap-3 lg:hidden">
-            <div className="grid h-12 w-12 place-items-center rounded-[20px] bg-gradient-to-br from-violet-950 via-purple-700 to-fuchsia-500 text-xl font-black text-white">
-              F
-            </div>
-            <div>
-              <div className="text-2xl font-black text-violet-950">FlowImage</div>
-              <div className="text-xs font-black uppercase text-fuchsia-600">studio</div>
-            </div>
+          <div>
+            <h2 className="mt-6 text-3xl font-extrabold text-gray-900">{mode === "login" ? "Bem-vindo de volta" : "Crie sua conta"}</h2>
+            <p className="mt-2 text-sm text-gray-600">{mode === "login" ? "Acesse sua conta para continuar." : "Preencha os dados abaixo para comecar."}</p>
           </div>
 
-          <div className="mb-6 inline-grid grid-cols-2 rounded-2xl border border-violet-100 bg-violet-50/70 p-1">
-            <button
-              className={`rounded-xl px-4 py-2 text-sm font-black transition ${mode === "login" ? "bg-violet-950 text-white shadow-lg" : "text-violet-950"}`}
-              type="button"
-              onClick={() => setMode("login")}
-            >
-              Entrar
-            </button>
-            <button
-              className={`rounded-xl px-4 py-2 text-sm font-black transition ${mode === "register" ? "bg-violet-950 text-white shadow-lg" : "text-violet-950"}`}
-              type="button"
-              onClick={() => setMode("register")}
-            >
-              Cadastrar
-            </button>
-          </div>
-
-          <form className="grid gap-4" onSubmit={submit}>
-            <div>
-              <h2 className="text-2xl font-black text-violet-950">{mode === "login" ? "Entrar no sistema" : "Criar acesso"}</h2>
-            </div>
-
-            {!configured ? (
-              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm font-bold text-amber-900">
-                Supabase Auth nao configurado no ambiente.
+          <div className="mt-8">
+            <form onSubmit={submit}>
+              {mode === "register" ? <DisplayInput label="Nome Completo" type="text" placeholder="Seu nome" icon={<User className="h-5 w-5" />} /> : null}
+              <AuthInput label="Email" type="email" placeholder="seu@email.com" icon={<Mail className="h-5 w-5" />} value={email} onChange={setEmail} />
+              <div className="mb-4">
+                <label className="mb-1 block text-sm font-medium text-gray-700">Senha</label>
+                <div className="relative">
+                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
+                    <Lock className="h-5 w-5" />
+                  </div>
+                  <input
+                    className="block w-full rounded-lg border border-gray-300 bg-white py-2.5 pl-10 pr-10 text-sm leading-5 placeholder-gray-500 transition focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="********"
+                    autoComplete={mode === "login" ? "current-password" : "new-password"}
+                    minLength={6}
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    required
+                  />
+                  <button className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-violet-600" type="button" onClick={() => setShowPassword((current) => !current)}>
+                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  </button>
+                </div>
               </div>
-            ) : null}
-            {error ? <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm font-bold text-danger">{error}</div> : null}
-            {message ? <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-bold text-emerald-800">{message}</div> : null}
 
-            <label className="grid gap-1.5 text-sm font-bold text-steel">
-              <span className="text-xs font-black uppercase text-violet-950/75">Email</span>
-              <span className="focus-within:ring-violet-500 flex min-h-12 items-center gap-2 rounded-2xl border border-violet-100 bg-white px-3.5 shadow-inner shadow-violet-100/60 focus-within:ring-2">
-                <Mail size={18} className="text-violet-800" />
-                <input
-                  className="min-w-0 flex-1 bg-transparent text-ink outline-none"
-                  type="email"
-                  autoComplete="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  required
-                />
-              </span>
-            </label>
+              {mode === "login" ? (
+                <div className="mt-4 flex items-center justify-end">
+                  <button className="text-sm font-medium text-violet-600 transition hover:text-violet-500" type="button">
+                    Esqueceu a senha?
+                  </button>
+                </div>
+              ) : null}
 
-            <label className="grid gap-1.5 text-sm font-bold text-steel">
-              <span className="text-xs font-black uppercase text-violet-950/75">Senha</span>
-              <span className="focus-within:ring-violet-500 flex min-h-12 items-center gap-2 rounded-2xl border border-violet-100 bg-white px-3.5 shadow-inner shadow-violet-100/60 focus-within:ring-2">
-                <Lock size={18} className="text-violet-800" />
-                <input
-                  className="min-w-0 flex-1 bg-transparent text-ink outline-none"
-                  type={showPassword ? "text" : "password"}
-                  autoComplete={mode === "login" ? "current-password" : "new-password"}
-                  minLength={6}
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  required
-                />
-                <button className="rounded-lg p-1 text-steel hover:bg-violet-50" type="button" onClick={() => setShowPassword((current) => !current)}>
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              {!configured ? <Message tone="warning">Supabase Auth nao configurado no ambiente.</Message> : null}
+              {error ? <Message tone="error">{error}</Message> : null}
+              {message ? <Message tone="success">{message}</Message> : null}
+
+              <div className="mt-6">
+                <button
+                  type="submit"
+                  disabled={!configured || submitting}
+                  className="flex w-full justify-center rounded-lg border border-transparent bg-violet-600 px-4 py-3 text-sm font-medium text-white shadow-sm transition hover:bg-violet-700 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {submitting ? "Aguarde..." : mode === "login" ? "Entrar na Plataforma" : "Cadastrar-se"}
                 </button>
-              </span>
-            </label>
+              </div>
+            </form>
 
-            <Button disabled={!configured || submitting} icon={mode === "login" ? <Lock size={18} /> : <UserPlus size={18} />}>
-              {submitting ? "Aguarde..." : mode === "login" ? "Entrar" : "Cadastrar"}
-            </Button>
-          </form>
-        </section>
+            <div className="mt-6">
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-300" />
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="bg-white px-2 text-gray-500">{mode === "login" ? "Novo por aqui?" : "Ja tem uma conta?"}</span>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setMode((current) => (current === "login" ? "register" : "login"));
+                  setError(null);
+                  setMessage(null);
+                }}
+                className="mt-6 flex w-full justify-center rounded-lg border-2 border-violet-600 bg-white px-4 py-3 text-sm font-medium text-violet-600 shadow-sm transition hover:bg-violet-50 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2"
+                type="button"
+              >
+                {mode === "login" ? "Criar uma conta" : "Fazer login"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function AuthInput({ label, type, placeholder, icon, value, onChange }: { label: string; type: string; placeholder: string; icon: ReactNode; value: string; onChange: (value: string) => void }) {
+  return (
+    <div className="mb-4">
+      <label className="mb-1 block text-sm font-medium text-gray-700">{label}</label>
+      <div className="relative">
+        <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">{icon}</div>
+        <input
+          type={type}
+          className="block w-full rounded-lg border border-gray-300 bg-white py-2.5 pl-10 pr-3 text-sm leading-5 placeholder-gray-500 transition focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-500"
+          placeholder={placeholder}
+          autoComplete="email"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          required
+        />
       </div>
     </div>
   );
+}
+
+function DisplayInput({ label, type, placeholder, icon }: { label: string; type: string; placeholder: string; icon: ReactNode }) {
+  return (
+    <div className="mb-4">
+      <label className="mb-1 block text-sm font-medium text-gray-700">{label}</label>
+      <div className="relative">
+        <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">{icon}</div>
+        <input className="block w-full rounded-lg border border-gray-300 bg-white py-2.5 pl-10 pr-3 text-sm leading-5 placeholder-gray-500 transition focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-500" type={type} placeholder={placeholder} />
+      </div>
+    </div>
+  );
+}
+
+function Message({ children, tone }: { children: ReactNode; tone: "warning" | "error" | "success" }) {
+  const classes = {
+    warning: "border-amber-200 bg-amber-50 text-amber-900",
+    error: "border-red-200 bg-red-50 text-red-700",
+    success: "border-emerald-200 bg-emerald-50 text-emerald-800",
+  };
+  return <div className={`mt-4 rounded-lg border p-3 text-sm font-medium ${classes[tone]}`}>{children}</div>;
 }
 
 function authErrorMessage(error: unknown) {
