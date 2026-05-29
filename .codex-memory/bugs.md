@@ -253,3 +253,33 @@ Classes visuais reutilizaveis como `.glass-panel` nao devem impor `overflow-hidd
 ### Proximos passos
 
 - Validar rolagem em revisao, lote e editor sempre que mexer no shell visual.
+
+## 2026-05-29 - NetworkError no processamento em lote
+
+### Projeto
+
+FLOWIMAGE
+
+### Tipo
+
+Bug / Lote / Backend / Frontend
+
+### O que foi feito
+
+Corrigido o fluxo de lote que fazia uma chamada separada de analise antes de processar cada imagem. O lote agora faz uma unica chamada pesada por arquivo, reaproveita dados de qualidade e rosto retornados nos headers da resposta de processamento e tenta novamente uma vez quando houver falha de rede.
+
+### Arquivos alterados
+
+- frontend/src/pages/BatchProcess/BatchProcess.tsx
+- frontend/src/services/api.ts
+- backend/app/api/process.py
+- backend/app/main.py
+- backend/app/services/photo_processing/memory_processor.py
+
+### Aprendizado
+
+Em hospedagem gratuita, cada imagem do FlowImage nao deve abrir chamadas pesadas redundantes com MediaPipe. Reduzir analise + processamento para uma unica requisicao por arquivo diminui chance de queda de conexao, timeout e consumo de memoria no Render.
+
+### Proximos passos
+
+- Testar lote real no Render com 5 a 10 imagens e observar se ainda ha timeout em fotos muito grandes.

@@ -92,6 +92,7 @@ export interface BlobResponse {
   blob: Blob;
   filename: string;
   url: string;
+  analysis?: AnalyzeResult;
 }
 
 export function processFileWithProgress(
@@ -123,7 +124,7 @@ async function blobRequest(path: string, body: FormData, originalFilename?: stri
   }
   const blob = await response.blob();
   const filename = outputFilename(originalFilename, blob.type, response.headers.get("X-Filename"));
-  return { blob, filename, url: URL.createObjectURL(blob) };
+  return { blob, filename, url: URL.createObjectURL(blob), analysis: analysisFromHeaders(response.headers) };
 }
 
 function xhrBlobRequest(
@@ -144,7 +145,7 @@ function xhrBlobRequest(
         onProgress(100);
         const blob = xhr.response as Blob;
         const filename = outputFilename(originalFilename, blob.type, xhr.getResponseHeader("X-Filename"));
-        resolve({ blob, filename, url: URL.createObjectURL(blob) });
+        resolve({ blob, filename, url: URL.createObjectURL(blob), analysis: analysisFromXhr(xhr) });
         return;
       }
       reject(new Error("Falha no processamento."));
@@ -152,6 +153,68 @@ function xhrBlobRequest(
     xhr.onerror = () => reject(new Error("Falha de rede durante processamento."));
     xhr.send(body);
   });
+}
+
+function analysisFromXhr(xhr: XMLHttpRequest): AnalyzeResult | undefined {
+  const headers = {
+    get: (name: string) => xhr.getResponseHeader(name),
+  };
+  return analysisFromHeaders(headers);
+}
+
+function analysisFromHeaders(headers: Pick<Headers, "get">): AnalyzeResult | undefined {
+  const score = numberHeader(headers, "X-Quality-Score");
+  if (score === null) return undefined;
+  const faceDetected = headers.get("X-Face-Detected") === "true";
+  const faceCount = numberHeader(headers, "X-Face-Count") ?? 0;
+  const confidence = numberHeader(headers, "X-Face-Confidence");
+  const faceX = numberHeader(headers, "X-Face-X");
+  const faceY = numberHeader(headers, "X-Face-Y");
+  const faceWidth = numberHeader(headers, "X-Face-Width");
+  const faceHeight = numberHeader(headers, "X-Face-Height");
+  const width = numberHeader(headers, "X-Quality-Width") ?? 0;
+  const height = numberHeader(headers, "X-Quality-Height") ?? 0;
+  const brightness = numberHeader(headers, "X-Quality-Brightness") ?? 0;
+  const blurScore = numberHeader(headers, "X-Quality-Blur") ?? 0;
+  const status = headers.get("X-Quality-Status");
+  return {
+    detection: {
+      face_detected: faceDetected,
+      face_count: faceCount,
+      confidence,
+      bounding_box:
+        faceX !== null && faceY !== null && faceWidth !== null && faceHeight !== null
+          ? { x: faceX, y: faceY, width: faceWidth, height: faceHeight }
+          : null,
+      center:
+        faceX !== null && faceY !== null && faceWidth !== null && faceHeight !== null
+          ? { x: faceX + faceWidth / 2, y: faceY + faceHeight / 2 }
+          : null,
+      face_width: faceWidth,
+      face_height: faceHeight,
+      detector: headers.get("X-Face-Detector") ?? "processamento",
+    },
+    quality: {
+      score,
+      status: status === "ok" || status === "review" || status === "problem" ? status : "review",
+      width,
+      height,
+      brightness,
+      blur_score: blurScore,
+      face_ratio: faceWidth !== null && faceHeight !== null && width > 0 && height > 0 ? (faceWidth * faceHeight) / (width * height) : null,
+      face_mesh_detected: false,
+      needs_review: headers.get("X-Quality-Needs-Review") === "true",
+      warnings: [],
+      suggestions: [],
+    },
+  };
+}
+
+function numberHeader(headers: Pick<Headers, "get">, name: string): number | null {
+  const value = headers.get(name);
+  if (!value) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function outputFilename(originalFilename: string | undefined, mediaType: string, headerFilename: string | null): string {

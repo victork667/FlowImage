@@ -68,28 +68,14 @@ export function BatchProcess() {
       for (const item of targetItems) {
         setQueueStatus(item.key, { status: "uploading", uploadProgress: 1, processProgress: 0, error: null, result: undefined });
         try {
-          const analysis = await api.process.analyze(item.file);
-          setQueueStatus(item.key, { analysis });
-          const result = await processFileWithProgress(
-            Number(templateId),
-            item.file,
-            null,
-            (progress) => {
-              setQueueStatus(item.key, {
-                uploadProgress: progress,
-                status: progress < 100 ? "uploading" : "processing",
-                processProgress: progress >= 100 ? 35 : 0,
-              });
-            },
-            studioAuto,
-            enhanceQuality,
-          );
+          const result = await processWithRetry(item, Number(templateId), studioAuto, enhanceQuality, setQueueStatus);
           setQueueStatus(item.key, {
             status: "processed",
             uploadProgress: 100,
             processProgress: 100,
             filename: result.filename,
             result,
+            analysis: result.analysis,
           });
         } catch (err) {
           setQueueStatus(item.key, {
@@ -234,6 +220,63 @@ function QualityCell({ item }: { item: QueueItem }) {
       <div className="mt-1 truncate font-semibold text-steel">{quality.warnings.length ? quality.warnings.join(" · ") : "Sem alertas"}</div>
     </div>
   );
+}
+
+async function processWithRetry(
+  item: QueueItem,
+  templateId: number,
+  studioAuto: boolean,
+  enhanceQuality: boolean,
+  setQueueStatus: (key: string, patch: Partial<QueueItem>) => void,
+) {
+  try {
+    return await processFileWithProgress(
+      templateId,
+      item.file,
+      null,
+      (progress) => {
+        setQueueStatus(item.key, {
+          uploadProgress: progress,
+          status: progress < 100 ? "uploading" : "processing",
+          processProgress: progress >= 100 ? 35 : 0,
+        });
+      },
+      studioAuto,
+      enhanceQuality,
+    );
+  } catch (error) {
+    if (!isNetworkFailure(error)) throw error;
+    setQueueStatus(item.key, {
+      status: "uploading",
+      uploadProgress: 0,
+      processProgress: 0,
+      error: "Falha de rede. Tentando novamente...",
+    });
+    await delay(1000);
+    return processFileWithProgress(
+      templateId,
+      item.file,
+      null,
+      (progress) => {
+        setQueueStatus(item.key, {
+          uploadProgress: progress,
+          status: progress < 100 ? "uploading" : "processing",
+          processProgress: progress >= 100 ? 35 : 0,
+        });
+      },
+      studioAuto,
+      enhanceQuality,
+    );
+  }
+}
+
+function isNetworkFailure(error: unknown) {
+  const message = error instanceof Error ? error.message.toLowerCase() : "";
+  return message.includes("rede") || message.includes("network") || message.includes("fetch");
+}
+
+function delay(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 function uniqueArchiveName(filename: string, usedNames: Set<string>) {

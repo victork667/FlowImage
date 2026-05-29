@@ -36,7 +36,7 @@ async def process_single_file(
         studio_auto=smart_studio,
         enhance_quality=enhance_quality,
     )
-    return _image_response(result.content, result.filename, result.media_type)
+    return _image_response(result.content, result.filename, result.media_type, result.detection, result.quality)
 
 
 @router.post("/analyze-file", response_model=AnalyzeResult)
@@ -67,7 +67,7 @@ async def process_preview_file(
         studio_auto=smart_studio,
         enhance_quality=enhance_quality,
     )
-    return _image_response(result.content, result.filename, result.media_type)
+    return _image_response(result.content, result.filename, result.media_type, result.detection, result.quality)
 
 
 @router.post("/manual-adjust-file")
@@ -86,7 +86,7 @@ async def manual_adjust_file(
         _parse_adjustments(adjustments),
         filename_suffix="",
     )
-    return _image_response(result.content, result.filename, result.media_type)
+    return _image_response(result.content, result.filename, result.media_type, result.detection, result.quality)
 
 
 def _get_template(db: Session, template_id: int) -> PhotoTemplate:
@@ -105,14 +105,48 @@ def _parse_adjustments(raw: str | None) -> ManualAdjustments | None:
         raise HTTPException(status_code=422, detail="Ajustes manuais invÃ¡lidos.") from exc
 
 
-def _image_response(content: bytes, filename: str, media_type: str) -> StreamingResponse:
+def _image_response(
+    content: bytes,
+    filename: str,
+    media_type: str,
+    detection: DetectionResult | None = None,
+    quality: QualityAnalysis | None = None,
+) -> StreamingResponse:
+    headers = {
+        "Content-Disposition": f'attachment; filename="{filename}"',
+        "X-Filename": filename,
+    }
+    if detection:
+        face = detection.selected_face
+        headers.update(
+            {
+                "X-Face-Detected": "true" if detection.face_detected else "false",
+                "X-Face-Count": str(detection.face_count),
+                "X-Face-Detector": detection.detector,
+            }
+        )
+        if face:
+            headers["X-Face-Confidence"] = f"{face.confidence:.4f}"
+            headers["X-Face-X"] = f"{face.x:.2f}"
+            headers["X-Face-Y"] = f"{face.y:.2f}"
+            headers["X-Face-Width"] = f"{face.width:.2f}"
+            headers["X-Face-Height"] = f"{face.height:.2f}"
+    if quality:
+        headers.update(
+            {
+                "X-Quality-Score": str(quality.score),
+                "X-Quality-Status": quality.status,
+                "X-Quality-Width": str(quality.width),
+                "X-Quality-Height": str(quality.height),
+                "X-Quality-Brightness": f"{quality.brightness:.2f}",
+                "X-Quality-Blur": f"{quality.blur_score:.2f}",
+                "X-Quality-Needs-Review": "true" if quality.needs_review else "false",
+            }
+        )
     return StreamingResponse(
         BytesIO(content),
         media_type=media_type,
-        headers={
-            "Content-Disposition": f'attachment; filename="{filename}"',
-            "X-Filename": filename,
-        },
+        headers=headers,
     )
 
 

@@ -13,6 +13,7 @@ from app.services.export.mask import apply_shape_mask, background_rgba
 from app.services.face_detection.detector import DetectionResult, FaceBox, detect_faces_from_pil
 from app.services.face_detection.face_mesh import build_face_mesh_mask, face_mesh_points
 from app.services.framing.crop import CropBox, calculate_crop
+from app.services.photo_analysis.quality import QualityAnalysis, analyze_photo_quality
 from app.services.photo_processing.processor import centered_crop, crop_with_background, fit_image_inside_template
 from app.services.quality_enhancement.safe_upscale import resize_with_safe_upscale
 from app.storage.files import extension_for_format, safe_stem
@@ -24,6 +25,7 @@ class MemoryProcessResult:
     filename: str
     media_type: str
     detection: DetectionResult
+    quality: QualityAnalysis
 
 
 def process_image_bytes(
@@ -38,6 +40,7 @@ def process_image_bytes(
 ) -> MemoryProcessResult:
     source = ImageOps.exif_transpose(Image.open(BytesIO(image_bytes))).convert("RGB")
     detection = detect_faces_from_pil(source)
+    quality = analyze_photo_quality(source, detection)
 
     color_preset = None
     preset_id = adjustments.color_preset_id if adjustments and adjustments.color_preset_id else template.color_preset_id
@@ -78,6 +81,7 @@ def process_image_bytes(
         filename=f"{download_stem(original_filename)}{filename_suffix}{extension}",
         media_type=media_type,
         detection=detection,
+        quality=quality,
     )
 
 

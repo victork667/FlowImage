@@ -19,7 +19,25 @@ def create_app() -> FastAPI:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
-        expose_headers=["X-Filename", "Content-Disposition"],
+        expose_headers=[
+            "X-Filename",
+            "Content-Disposition",
+            "X-Face-Detected",
+            "X-Face-Count",
+            "X-Face-Detector",
+            "X-Face-Confidence",
+            "X-Face-X",
+            "X-Face-Y",
+            "X-Face-Width",
+            "X-Face-Height",
+            "X-Quality-Score",
+            "X-Quality-Status",
+            "X-Quality-Width",
+            "X-Quality-Height",
+            "X-Quality-Brightness",
+            "X-Quality-Blur",
+            "X-Quality-Needs-Review",
+        ],
     )
 
     app.mount("/files/input", StaticFiles(directory=settings.input_dir), name="input")
