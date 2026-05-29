@@ -1,6 +1,6 @@
 # FlowImage
 
-Sistema para gerar somente a foto final tratada e reenquadrada para uso em crachás.
+Sistema para gerar somente a foto final tratada e reenquadrada para uso em crachas.
 
 O MVP entrega:
 
@@ -8,15 +8,15 @@ O MVP entrega:
 - Presets iniciais de cor.
 - Processamento individual com MediaPipe/OpenCV.
 - Debug de rosto detectado e crop calculado.
-- Exportação PNG/JPG no tamanho exato do molde.
-- Revisão manual com zoom, posição, rotação e cor.
+- Exportacao PNG/JPG no tamanho exato do molde.
+- Revisao manual com zoom, posicao, rotacao e cor.
 - Processamento em lote com ZIP.
 
 ## Stack
 
-- Backend: Python, FastAPI, SQLAlchemy, SQLite, MediaPipe, OpenCV, Pillow, NumPy.
+- Backend: Python, FastAPI, SQLAlchemy, SQLite/Postgres, MediaPipe, OpenCV, Pillow, NumPy.
 - Frontend: React, TypeScript, Tailwind, Konva.
-- Storage MVP: pastas locais `input/`, `output/` e `debug/`.
+- Storage MVP: processamento em memoria para fotos enviadas.
 
 ## Rodar backend
 
@@ -53,9 +53,17 @@ Interface:
 4. Selecionar molde e foto.
 5. Processar e baixar a imagem final.
 
+## Deploy
+
+Arquivos de deploy:
+
+- `render.yaml` para Render.
+- `frontend/wrangler.toml` para Cloudflare Pages.
+- `supabase/migrations/` para Supabase Postgres.
+
 ## Limites do MVP
 
-- Não gera crachá completo.
-- Não adiciona nome, cargo, QR Code, código de barras ou dados de colaborador.
-- CSV/XLSX ainda fica preparado como evolução futura.
-- Se MediaPipe não estiver disponível, a API usa OpenCV Haar Cascade como fallback explícito.
+- Nao gera cracha completo.
+- Nao adiciona nome, cargo, QR Code, codigo de barras ou dados de colaborador.
+- CSV/XLSX ainda fica preparado como evolucao futura.
+- Se MediaPipe nao estiver disponivel, a API usa OpenCV Haar Cascade como fallback explicito.
