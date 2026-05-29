@@ -689,3 +689,30 @@ A nova direcao visual do FlowImage e mais SaaS administrativo classico: sidebar 
 ### Proximos passos
 
 - Refinar pagina por pagina para aproximar ainda mais cards e tabelas do layout de referencia.
+
+## 2026-05-29 - Backend no Orange Pi
+
+### Projeto
+
+FLOWIMAGE
+
+### Tipo
+
+Funcionalidade / Infra / Deploy
+
+### O que foi feito
+
+Configurado Orange Pi em `192.168.2.109` para rodar o backend FlowImage via `systemd` em `/opt/flowimage/backend`. O serviço `flowimage-backend` ficou ativo na porta `8000`, conectado ao Supabase e validado com `/health`, listagem de moldes e processamento de imagem.
+
+### Arquivos alterados
+
+- backend/requirements-orangepi.txt
+- docs/deploy-orangepi.md
+
+### Aprendizado
+
+No Orange Pi com Ubuntu 22.04 aarch64 e Python 3.10, `mediapipe==0.10.20` nao possui wheel disponivel; a versao validada foi `mediapipe==0.10.18`. Para esse hardware, manter backend em systemd e venv e mais previsivel que Docker com instalacao no start.
+
+### Proximos passos
+
+- Configurar Cloudflare Tunnel estavel para expor o backend do Orange Pi com HTTPS.
