@@ -368,3 +368,29 @@ JPG nao preserva alpha; se a mascara for aplicada apenas como transparencia e de
 ### Proximos passos
 
 - Reprocessar uma foto com molde `rounded` no Render apos o deploy do backend.
+
+## 2026-05-29 - Coluna de molde travava lote
+
+### Projeto
+
+FLOWIMAGE
+
+### Tipo
+
+Bug / UI / Lote
+
+### O que foi feito
+
+Removida a coluna lateral fixa da tela de lote. Os controles de molde, nome do lote, upload, processamento, ZIP e toggles agora ficam em um painel superior responsivo. Tambem foram adicionadas mensagens explicitas quando o usuario tenta processar sem molde ou sem imagens.
+
+### Arquivos alterados
+
+- frontend/src/pages/BatchProcess/BatchProcess.tsx
+
+### Aprendizado
+
+Na tela de lote, controles essenciais nao devem ficar em coluna lateral sticky/rolavel porque isso pode travar clique e visibilidade em combinacoes de viewport e shell. O fluxo principal deve ficar em uma faixa superior estavel.
+
+### Proximos passos
+
+- Validar manualmente com login real se selecionar molde, escolher imagens e processar ficam acessiveis em desktop e notebook.

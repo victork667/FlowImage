@@ -26,6 +26,7 @@ interface QueueItem {
 export function BatchProcess() {
   const [templates, setTemplates] = useState<PhotoTemplate[]>([]);
   const [templateId, setTemplateId] = useState<number | "">("");
+  const [templatesLoading, setTemplatesLoading] = useState(true);
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [studioAuto, setStudioAuto] = useState(true);
   const [enhanceQuality, setEnhanceQuality] = useState(false);
@@ -40,7 +41,8 @@ export function BatchProcess() {
         setTemplates(items);
         setTemplateId(items.find((item) => item.status === "active")?.id ?? items[0]?.id ?? "");
       })
-      .catch((err) => setError(err.message));
+      .catch((err) => setError(err.message))
+      .finally(() => setTemplatesLoading(false));
   }, []);
 
   const processedCount = useMemo(() => queue.filter((item) => item.status === "processed").length, [queue]);
@@ -60,7 +62,14 @@ export function BatchProcess() {
   };
 
   const process = async (onlyKey?: string) => {
-    if (!templateId || queue.length === 0) return;
+    if (!templateId) {
+      setError("Selecione um molde antes de processar.");
+      return;
+    }
+    if (queue.length === 0) {
+      setError("Selecione ao menos uma imagem antes de processar.");
+      return;
+    }
     setProcessing(true);
     setError(null);
     try {
@@ -153,69 +162,90 @@ export function BatchProcess() {
         <div>
           <div className="toolbar-title">Processamento em lote</div>
         </div>
-        <div className="rounded-full bg-white/80 px-3 py-1 text-xs font-black text-violet-950 shadow-sm">{processedCount}/{queue.length} processadas</div>
+        <div className="rounded-full bg-violet-50 px-3 py-1 text-xs font-bold text-violet-700">{processedCount}/{queue.length} processadas</div>
       </div>
 
       {error ? <div className="rounded-lg border border-red-200 bg-red-50/90 p-3 text-sm font-semibold text-danger">{error}</div> : null}
 
-      <section className="grid items-start gap-5 lg:grid-cols-[340px_minmax(0,1fr)]">
-        <div className="control-panel overflow-auto lg:sticky lg:top-44 lg:max-h-[calc(100vh-11rem)]">
-          <SelectField label="Molde" value={templateId} onChange={(event) => setTemplateId(Number(event.target.value))}>
+      <section className="control-panel">
+        <div className="grid gap-4 xl:grid-cols-[minmax(220px,1fr)_minmax(220px,1fr)_minmax(260px,1.2fr)_auto] xl:items-end">
+          <SelectField
+            label="Molde"
+            value={templateId}
+            disabled={templatesLoading || processing}
+            onChange={(event) => setTemplateId(event.target.value ? Number(event.target.value) : "")}
+          >
+            <option value="">{templatesLoading ? "Carregando moldes..." : "Selecione um molde"}</option>
             {templates.map((template) => (
               <option key={template.id} value={template.id}>{template.name}</option>
             ))}
           </SelectField>
 
-          <Field label="Nome do lote" value={batchName} onChange={(event) => setBatchName(event.target.value)} />
+          <Field label="Nome do lote" value={batchName} disabled={processing} onChange={(event) => setBatchName(event.target.value)} />
 
-          <label className="focus-ring flex min-h-36 cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-violet-300/80 bg-gradient-to-br from-white to-violet-50 p-4 text-center text-sm font-bold text-violet-900">
-            <ImagePlus size={24} />
+          <label className="focus-ring flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-violet-300 bg-violet-50 px-4 py-2 text-center text-sm font-medium text-violet-700 transition hover:bg-violet-100">
+            <ImagePlus size={20} />
             <span>{queue.length ? `${queue.length} imagens selecionadas` : "Selecionar imagens"}</span>
-            <input className="sr-only" type="file" accept="image/*" multiple onChange={(event) => selectFiles(Array.from(event.target.files ?? []))} />
+            <input
+              className="sr-only"
+              type="file"
+              accept="image/*"
+              multiple
+              disabled={processing}
+              onChange={(event) => selectFiles(Array.from(event.target.files ?? []))}
+            />
           </label>
 
+          <div className="flex flex-wrap gap-2 xl:justify-end">
+            <Button disabled={!templateId || queue.length === 0 || processing} onClick={() => process()} icon={<UploadCloud size={18} />}>
+              {processing ? "Processando..." : "Enviar e processar"}
+            </Button>
+            <Button disabled={processedCount === 0 || processing} onClick={exportZip} variant="secondary" icon={<Archive size={18} />}>
+              Exportar ZIP
+            </Button>
+          </div>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-[1fr_1fr_auto_auto] lg:items-center">
           <ProgressBlock label="Upload geral" value={uploadAverage} />
           <ProgressBlock label="Processamento geral" value={processAverage} />
 
-          <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-violet-200 bg-white/80 p-3">
+          <label className="flex min-h-12 cursor-pointer items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white px-3">
             <span>
-              <span className="block text-sm font-black text-ink">Studio automatico</span>
+              <span className="block text-sm font-medium text-gray-900">Studio automatico</span>
             </span>
             <input
               className="h-5 w-5 accent-violet-700"
               type="checkbox"
               checked={studioAuto}
+              disabled={processing}
               onChange={(event) => setStudioAuto(event.target.checked)}
             />
           </label>
 
-          <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-purple-200 bg-white/80 p-3">
+          <label className="flex min-h-12 cursor-pointer items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white px-3">
             <span>
-              <span className="block text-sm font-black text-ink">Melhorar pixels</span>
+              <span className="block text-sm font-medium text-gray-900">Melhorar pixels</span>
             </span>
             <input
               className="h-5 w-5 accent-purple-700"
               type="checkbox"
               checked={enhanceQuality}
+              disabled={processing}
               onChange={(event) => setEnhanceQuality(event.target.checked)}
             />
           </label>
-
-          <Button disabled={!templateId || queue.length === 0 || processing} onClick={() => process()} icon={<UploadCloud size={18} />}>
-            {processing ? "Processando..." : "Enviar e processar"}
-          </Button>
-          <Button disabled={processedCount === 0 || processing} onClick={exportZip} variant="secondary" icon={<Archive size={18} />}>
-            Exportar ZIP
-          </Button>
         </div>
+      </section>
 
-        <div className="glass-panel overflow-hidden">
-          <div className="grid grid-cols-[minmax(0,1fr)_170px_150px] gap-3 bg-violet-950 px-3 py-2 text-xs font-black uppercase text-white">
+      <section className="glass-panel overflow-hidden">
+        <div className="overflow-x-auto">
+          <div className="grid min-w-[720px] grid-cols-[minmax(0,1fr)_170px_150px] gap-3 bg-gray-900 px-3 py-2 text-xs font-bold uppercase text-white">
             <span>Imagem</span>
             <span>Qualidade</span>
             <span>Acoes</span>
           </div>
-          <div className="divide-y divide-line/70 bg-white/75">
+          <div className="min-w-[720px] divide-y divide-line/70 bg-white">
             {queue.map((item) => (
               <div key={item.key} className="grid grid-cols-[minmax(0,1fr)_170px_150px] items-center gap-3 px-3 py-3 text-sm">
                 <div className="min-w-0">
