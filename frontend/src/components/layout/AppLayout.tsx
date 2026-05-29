@@ -1,5 +1,7 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { BadgeCheck, Grid2X2, Images, Layers3, Palette, SlidersHorizontal } from "lucide-react";
+import { BadgeCheck, Grid2X2, Images, Layers3, LogOut, Palette, SlidersHorizontal } from "lucide-react";
+
+import { useAuth } from "../../auth/AuthProvider";
 
 const links = [
   { to: "/", label: "Dashboard", icon: Grid2X2 },
@@ -11,6 +13,8 @@ const links = [
 ];
 
 export function AppLayout() {
+  const { signOut, user } = useAuth();
+
   return (
     <div className="app-gradient min-h-screen overflow-x-hidden text-ink">
       <div className="pointer-events-none fixed inset-x-0 top-0 z-40 h-1 bg-gradient-to-r from-violet-950 via-purple-600 to-fuchsia-500" />
@@ -45,6 +49,19 @@ export function AppLayout() {
               </NavLink>
             ))}
           </nav>
+
+          <div className="flex shrink-0 items-center gap-2 rounded-2xl border border-violet-100 bg-white/70 p-1.5 shadow-inner shadow-violet-100/70">
+            <span className="hidden max-w-44 truncate px-2 text-xs font-black text-violet-950 lg:block">{user?.email}</span>
+            <button
+              className="grid h-10 w-10 place-items-center rounded-xl text-violet-950 transition hover:bg-violet-950 hover:text-white"
+              type="button"
+              title="Sair"
+              aria-label="Sair"
+              onClick={() => void signOut()}
+            >
+              <LogOut size={18} />
+            </button>
+          </div>
         </div>
       </header>
 

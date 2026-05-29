@@ -627,3 +627,35 @@ No FlowImage, a sensacao de sistema incompleto vinha mais do shell visual e das 
 ### Proximos passos
 
 - Revisar estados com fotos reais carregadas para ajustar contraste do palco de preview quando houver imagem transparente ou fundo branco.
+
+## 2026-05-29 - Login e cadastro com Supabase Auth
+
+### Projeto
+
+FLOWIMAGE
+
+### Tipo
+
+Funcionalidade / Auth / Frontend
+
+### O que foi feito
+
+Adicionada autenticacao no frontend com Supabase Auth. A tela de login passou a permitir entrada e cadastro por email/senha, as rotas internas ficaram protegidas e o layout ganhou botao de sair com exibicao do email do usuario.
+
+### Arquivos alterados
+
+- frontend/src/auth/AuthProvider.tsx
+- frontend/src/auth/ProtectedRoute.tsx
+- frontend/src/services/supabase.ts
+- frontend/src/pages/Login/Login.tsx
+- frontend/src/App.tsx
+- frontend/src/main.tsx
+- frontend/src/components/layout/AppLayout.tsx
+
+### Aprendizado
+
+Para o FlowImage hospedado em Cloudflare + Render + Supabase, Supabase Auth e o caminho mais simples para login/cadastro sem introduzir Firebase em paralelo. A protecao atual e do frontend; bloqueio de API por JWT deve ser uma etapa separada se o backend precisar recusar chamadas diretas.
+
+### Proximos passos
+
+- Implementar validacao JWT no backend quando o sistema precisar de seguranca de API alem da interface.

@@ -154,3 +154,32 @@ O Supabase CLI no Windows consegue aplicar `link` e `db push` sem Docker, mas `d
 
 - Configurar `DATABASE_URL` no Render usando pooler URL com `postgresql+psycopg2` e `sslmode=require`.
 - Configurar `CORS_ORIGINS` no Render apos obter dominio do Cloudflare.
+
+## 2026-05-29 - Usar Supabase Auth no lugar de Firebase Auth
+
+### Projeto
+
+FLOWIMAGE
+
+### Tipo
+
+Decisao / Auth / Infra
+
+### O que foi feito
+
+Decidido usar Supabase Auth para login e cadastro do FlowImage, aproveitando o projeto Supabase ja conectado via CLI e evitando uma segunda plataforma de autenticacao.
+
+### Arquivos alterados
+
+- frontend/package.json
+- frontend/src/services/supabase.ts
+- frontend/src/auth/AuthProvider.tsx
+- frontend/src/auth/ProtectedRoute.tsx
+
+### Aprendizado
+
+Quando Supabase ja esta conectado no projeto, Auth por `@supabase/supabase-js` reduz configuracao e fica coerente com banco e deploy existentes. A chave usada no frontend deve ser apenas a publicavel/anonima, nunca service role.
+
+### Proximos passos
+
+- Se necessario, adicionar middleware no FastAPI para validar o JWT Supabase antes dos endpoints privados.
