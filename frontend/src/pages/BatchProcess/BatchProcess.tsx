@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import JSZip from "jszip";
-import { Archive, Clock3, ImagePlus, Layers3, Play, Plus, RefreshCcw, Trash2, UploadCloud, X } from "lucide-react";
+import { Archive, Clock3, ImagePlus, Plus, RefreshCcw, Trash2, UploadCloud, X } from "lucide-react";
 
 import { Button } from "../../components/ui/Button";
 import { Field, SelectField } from "../../components/ui/Field";
@@ -55,12 +55,12 @@ export function BatchProcess() {
   const [draftGroupName, setDraftGroupName] = useState("DHL");
   const [draftFiles, setDraftFiles] = useState<File[]>([]);
   const [groups, setGroups] = useState<BatchGroup[]>([]);
-  const [studioAuto, setStudioAuto] = useState(true);
-  const [enhanceQuality, setEnhanceQuality] = useState(false);
   const [batchName, setBatchName] = useState("flowimage_resultados");
   const [concurrency, setConcurrency] = useState(3);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const studioAuto = true;
+  const enhanceQuality = false;
 
   useEffect(() => {
     api.templates
@@ -325,10 +325,6 @@ export function BatchProcess() {
     );
   };
 
-  const updateGroupTemplate = (groupId: string, templateId: number | "") => {
-    setGroups((current) => current.map((group) => (group.id === groupId ? { ...group, templateId } : group)));
-  };
-
   const removeGroup = (groupId: string) => {
     setGroups((current) => current.filter((group) => group.id !== groupId));
   };
@@ -362,16 +358,16 @@ export function BatchProcess() {
       {error ? <div className="rounded-lg border border-red-200 bg-red-50/90 p-3 text-sm font-semibold text-danger">{error}</div> : null}
 
       <section className="control-panel">
-        <div className="grid gap-4 xl:grid-cols-[minmax(190px,0.8fr)_minmax(220px,1fr)_minmax(180px,0.7fr)_minmax(260px,1.1fr)_auto] xl:items-end">
+        <div className="grid gap-4 xl:grid-cols-[minmax(180px,0.8fr)_minmax(220px,1fr)_150px_minmax(240px,1fr)_auto] xl:items-end">
           <Field
-            label="Nome do grupo"
+            label="Grupo"
             value={draftGroupName}
             disabled={processing}
             onChange={(event) => setDraftGroupName(event.target.value)}
           />
 
           <SelectField
-            label="Molde do grupo"
+            label="Molde"
             value={draftTemplateId}
             disabled={templatesLoading || processing}
             onChange={(event) => setDraftTemplateId(event.target.value ? Number(event.target.value) : "")}
@@ -385,7 +381,7 @@ export function BatchProcess() {
           </SelectField>
 
           <SelectField
-            label="Grupos em paralelo"
+            label="Paralelo"
             value={concurrency}
             disabled={processing}
             onChange={(event) => setConcurrency(Number(event.target.value))}
@@ -399,7 +395,7 @@ export function BatchProcess() {
 
           <label className="focus-ring flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-violet-300 bg-violet-50 px-4 py-2 text-center text-sm font-medium text-violet-700 transition hover:bg-violet-100">
             <ImagePlus size={20} />
-            <span>{draftFiles.length ? `${draftFiles.length} imagens no grupo` : "Selecionar imagens do grupo"}</span>
+            <span>{draftFiles.length ? `${draftFiles.length} imagens` : "Selecionar imagens"}</span>
             <input
               className="sr-only"
               type="file"
@@ -420,11 +416,8 @@ export function BatchProcess() {
           </div>
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-[minmax(180px,0.7fr)_minmax(180px,0.7fr)_minmax(180px,0.7fr)_minmax(220px,1fr)_auto_auto] lg:items-end">
-          <ProgressBlock label="Upload geral" value={globalStats.uploadAverage} eta={globalStats.uploadEtaSeconds} />
-          <ProgressBlock label="Processo geral" value={globalStats.processAverage} eta={globalStats.processEtaSeconds} />
-          <ProgressBlock label="Total estimado" value={globalStats.overallProgress} eta={globalStats.etaSeconds} />
-
+        <div className="grid gap-4 lg:grid-cols-[minmax(260px,1fr)_220px_auto_auto] lg:items-end">
+          <SummaryBar stats={globalStats} />
           <Field label="Nome do ZIP" value={batchName} disabled={processing} onChange={(event) => setBatchName(event.target.value)} />
 
           <Button disabled={groups.length === 0 || processing} onClick={processAllGroups} icon={<UploadCloud size={18} />}>
@@ -434,11 +427,6 @@ export function BatchProcess() {
             Exportar ZIP
           </Button>
         </div>
-
-        <div className="grid gap-3 md:grid-cols-2">
-          <ToggleOption label="Studio automatico" checked={studioAuto} disabled={processing} onChange={setStudioAuto} />
-          <ToggleOption label="Melhorar pixels" checked={enhanceQuality} disabled={processing} onChange={setEnhanceQuality} />
-        </div>
       </section>
 
       <section className="grid gap-4">
@@ -447,10 +435,9 @@ export function BatchProcess() {
           const template = templates.find((item) => item.id === Number(group.templateId));
           return (
             <article key={group.id} className="glass-panel overflow-hidden">
-              <div className="grid gap-4 border-b border-line bg-white px-4 py-4 xl:grid-cols-[minmax(0,1fr)_240px_190px_auto] xl:items-end">
+              <div className="grid gap-4 border-b border-line bg-white px-4 py-4 lg:grid-cols-[minmax(0,1fr)_220px_auto] lg:items-center">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <Layers3 size={18} className="text-violet-700" />
                     <h3 className="truncate text-base font-black text-gray-950">{group.name}</h3>
                     <span className="rounded-full bg-gray-100 px-2 py-1 text-[11px] font-black uppercase text-steel">
                       {groupStatusLabel(group.status)}
@@ -460,33 +447,17 @@ export function BatchProcess() {
                     <span>{stats.total} imagens</span>
                     <span>{stats.processed} concluidas</span>
                     {stats.failed > 0 ? <span className="text-danger">{stats.failed} falhas</span> : null}
-                    <span>{template?.name ?? "Sem molde"}</span>
                   </div>
                 </div>
 
-                <SelectField
-                  label="Molde"
-                  value={group.templateId}
-                  disabled={templatesLoading || processing}
-                  onChange={(event) => updateGroupTemplate(group.id, event.target.value ? Number(event.target.value) : "")}
-                >
-                  <option value="">{templatesLoading ? "Carregando..." : "Selecione"}</option>
-                  {templates.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.name}
-                    </option>
-                  ))}
-                </SelectField>
-
                 <div className="grid gap-1 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-semibold text-steel">
-                  <span>Tempo decorrido: {formatDuration(stats.elapsedSeconds)}</span>
-                  <span>ETA upload: {formatDuration(stats.uploadEtaSeconds)}</span>
-                  <span>ETA processo: {formatDuration(stats.processEtaSeconds)}</span>
+                  <span>{template?.name ?? "Sem molde"}</span>
+                  <span>ETA {formatDuration(stats.etaSeconds)}</span>
                 </div>
 
                 <div className="flex flex-wrap gap-2 xl:justify-end">
-                  <Button disabled={processing || !group.templateId} onClick={() => processOneGroup(group)} icon={<Play size={16} />}>
-                    Processar
+                  <Button disabled={processing || !group.templateId} onClick={() => processOneGroup(group)} variant="secondary">
+                    Processar grupo
                   </Button>
                   <button
                     className="focus-ring inline-flex min-h-11 items-center justify-center rounded-lg border border-gray-200 bg-white px-3 text-gray-600 transition hover:bg-gray-50"
@@ -500,29 +471,27 @@ export function BatchProcess() {
                 </div>
               </div>
 
-              <div className="grid gap-3 bg-gray-50 px-4 py-4 md:grid-cols-3">
-                <ProgressBlock label="Upload do grupo" value={stats.uploadAverage} eta={stats.uploadEtaSeconds} compact />
-                <ProgressBlock label="Processo do grupo" value={stats.processAverage} eta={stats.processEtaSeconds} compact />
-                <ProgressBlock label="Total do grupo" value={stats.overallProgress} eta={stats.etaSeconds} compact />
+              <div className="bg-gray-50 px-4 py-3">
+                <MiniProgress label="Progresso do grupo" value={stats.overallProgress} />
               </div>
 
               <div className="overflow-x-auto">
-                <div className="grid min-w-[780px] grid-cols-[minmax(0,1fr)_170px_150px] gap-3 bg-gray-900 px-3 py-2 text-xs font-bold uppercase text-white">
+                <div className="grid min-w-[660px] grid-cols-[minmax(0,1fr)_150px_130px] gap-3 bg-gray-900 px-3 py-2 text-xs font-bold uppercase text-white">
                   <span>Imagem</span>
-                  <span>Qualidade</span>
+                  <span>Status</span>
                   <span>Acoes</span>
                 </div>
-                <div className="min-w-[780px] divide-y divide-line/70 bg-white">
+                <div className="min-w-[660px] divide-y divide-line/70 bg-white">
                   {group.items.map((item) => (
-                    <div key={item.key} className="grid grid-cols-[minmax(0,1fr)_170px_150px] items-center gap-3 px-3 py-3 text-sm">
+                    <div key={item.key} className="grid grid-cols-[minmax(0,1fr)_150px_130px] items-center gap-3 px-3 py-3 text-sm">
                       <div className="min-w-0">
                         <div className="truncate font-bold">{item.filename}</div>
-                        <div className="mt-1 text-xs font-semibold text-steel">{statusLabel(item.status)}</div>
                         {item.error ? <div className="mt-1 truncate text-xs font-semibold text-danger">{item.error}</div> : null}
-                        <MiniProgress label="Upload" value={item.uploadProgress} />
-                        <MiniProgress label="Processo" value={item.processProgress} />
+                        <MiniProgress label="Progresso" value={itemOverallProgress(item)} />
                       </div>
-                      <QualityCell item={item} />
+                      <div className="text-xs font-bold text-steel">
+                        {statusLabel(item.status)}
+                      </div>
                       <div className="flex flex-wrap items-center gap-2">
                         {item.result ? (
                           <a className="text-xs font-bold text-action" href={item.result.url} download={item.result.filename}>
@@ -561,43 +530,6 @@ export function BatchProcess() {
           </div>
         ) : null}
       </section>
-    </div>
-  );
-}
-
-function ToggleOption({
-  label,
-  checked,
-  disabled,
-  onChange,
-}: {
-  label: string;
-  checked: boolean;
-  disabled: boolean;
-  onChange: (checked: boolean) => void;
-}) {
-  return (
-    <label className="flex min-h-12 cursor-pointer items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white px-3">
-      <span className="block text-sm font-medium text-gray-900">{label}</span>
-      <input
-        className="h-5 w-5 accent-violet-700"
-        type="checkbox"
-        checked={checked}
-        disabled={disabled}
-        onChange={(event) => onChange(event.target.checked)}
-      />
-    </label>
-  );
-}
-
-function QualityCell({ item }: { item: QueueItem }) {
-  const quality = item.analysis?.quality;
-  if (!quality) return <div className="text-xs font-semibold text-steel">Sem analise</div>;
-  const color = quality.status === "ok" ? "text-action" : quality.status === "review" ? "text-amber-700" : "text-danger";
-  return (
-    <div className="min-w-0 text-xs">
-      <div className={`font-black ${color}`}>Score {quality.score}</div>
-      <div className="mt-1 truncate font-semibold text-steel">{quality.warnings.length ? quality.warnings.join(" | ") : "Sem alertas"}</div>
     </div>
   );
 }
@@ -746,22 +678,24 @@ function createId() {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-function ProgressBlock({ label, value, eta, compact = false }: { label: string; value: number; eta?: number | null; compact?: boolean }) {
+function SummaryBar({ stats }: { stats: GroupStats }) {
   return (
-    <div className={`rounded-xl bg-white/75 p-3 shadow-sm ${compact ? "border border-gray-200" : ""}`}>
-      <div className="mb-2 flex items-center justify-between gap-3 text-xs font-black uppercase text-steel">
-        <span className="truncate">{label}</span>
-        <span>{value}%</span>
+    <div className="rounded-xl border border-gray-200 bg-white p-3">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs font-black uppercase text-steel">
+        <span>Andamento geral</span>
+        <span>{stats.overallProgress}%</span>
       </div>
       <div className="h-2 overflow-hidden rounded-full bg-slate-200">
-        <div className="h-full rounded-full bg-gradient-to-r from-violet-700 to-fuchsia-500" style={{ width: `${value}%` }} />
+        <div className="h-full rounded-full bg-gradient-to-r from-violet-700 to-fuchsia-500" style={{ width: `${stats.overallProgress}%` }} />
       </div>
-      {eta !== undefined ? (
-        <div className="mt-2 flex items-center gap-1 text-[11px] font-bold text-steel">
+      <div className="mt-2 flex flex-wrap gap-3 text-[11px] font-bold text-steel">
+        <span className="flex items-center gap-1">
           <Clock3 size={12} />
-          <span>ETA {formatDuration(eta ?? null)}</span>
-        </div>
-      ) : null}
+          Total {formatDuration(stats.etaSeconds)}
+        </span>
+        <span>Upload {stats.uploadAverage}%</span>
+        <span>Processo {stats.processAverage}%</span>
+      </div>
     </div>
   );
 }

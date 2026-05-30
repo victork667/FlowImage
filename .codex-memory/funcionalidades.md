@@ -768,3 +768,29 @@ Para organizar clientes ou remessas como DHL, o lote deve separar as imagens por
 ### Proximos passos
 
 - Validar com lote real grande se a concorrencia padrao de 3 grupos por vez e adequada para o Orange Pi.
+
+## 2026-05-29 - Lote simplificado
+
+### Projeto
+
+FLOWIMAGE
+
+### Tipo
+
+Funcionalidade / UI / Lote
+
+### O que foi feito
+
+Simplificada a tela de lote por grupos. Foram removidos cards e controles repetidos, mantendo fluxo direto: grupo, molde, imagens, concorrencia, processar e exportar ZIP.
+
+### Arquivos alterados
+
+- frontend/src/pages/BatchProcess/BatchProcess.tsx
+
+### Aprendizado
+
+No FlowImage, a tela de lote deve priorizar operacao rapida e leitura simples. ETA e concorrencia sao uteis, mas devem aparecer como resumo compacto em vez de varios blocos por grupo e por imagem.
+
+### Proximos passos
+
+- Validar com usuario se o fluxo reduzido ficou claro em lote real.
