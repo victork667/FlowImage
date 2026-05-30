@@ -742,3 +742,29 @@ Quick Tunnel do Cloudflare funciona para validar o backend do Orange Pi via HTTP
 ### Proximos passos
 
 - Adicionar um dominio/subdominio na Cloudflare e converter o quick tunnel para tunnel nomeado estavel.
+
+## 2026-05-29 - Lote por grupos com ETA
+
+### Projeto
+
+FLOWIMAGE
+
+### Tipo
+
+Funcionalidade / Lote / Frontend
+
+### O que foi feito
+
+A tela de processamento em lote passou a trabalhar com grupos independentes. Cada grupo recebe nome, molde e imagens proprias, e o processamento global pode rodar varios grupos em paralelo conforme a concorrencia configurada pelo usuario.
+
+### Arquivos alterados
+
+- frontend/src/pages/BatchProcess/BatchProcess.tsx
+
+### Aprendizado
+
+Para organizar clientes ou remessas como DHL, o lote deve separar as imagens por grupos e exportar o ZIP com pastas por grupo. No Orange Pi, manter as imagens sequenciais dentro de cada grupo e paralelizar apenas grupos reduz sobrecarga e ainda permite multitarefa.
+
+### Proximos passos
+
+- Validar com lote real grande se a concorrencia padrao de 3 grupos por vez e adequada para o Orange Pi.

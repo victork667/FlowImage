@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import JSZip from "jszip";
-import { Archive, ImagePlus, RefreshCcw, Trash2, UploadCloud } from "lucide-react";
+import { Archive, Clock3, ImagePlus, Layers3, Play, Plus, RefreshCcw, Trash2, UploadCloud, X } from "lucide-react";
 
 import { Button } from "../../components/ui/Button";
 import { Field, SelectField } from "../../components/ui/Field";
@@ -10,6 +10,7 @@ import type { BlobResponse } from "../../services/api";
 import type { AnalyzeResult, PhotoTemplate } from "../../types";
 
 type QueueStatus = "selected" | "uploading" | "processing" | "processed" | "error";
+type GroupStatus = "draft" | "queued" | "processing" | "processed" | "error";
 
 interface QueueItem {
   key: string;
@@ -23,14 +24,41 @@ interface QueueItem {
   error?: string | null;
 }
 
+interface BatchGroup {
+  id: string;
+  name: string;
+  templateId: number | "";
+  items: QueueItem[];
+  status: GroupStatus;
+  startedAt?: number | null;
+  finishedAt?: number | null;
+}
+
+interface GroupStats {
+  total: number;
+  processed: number;
+  failed: number;
+  uploadAverage: number;
+  processAverage: number;
+  overallProgress: number;
+  elapsedSeconds: number | null;
+  etaSeconds: number | null;
+  uploadEtaSeconds: number | null;
+  processEtaSeconds: number | null;
+}
+
 export function BatchProcess() {
   const [templates, setTemplates] = useState<PhotoTemplate[]>([]);
-  const [templateId, setTemplateId] = useState<number | "">("");
+  const [defaultTemplateId, setDefaultTemplateId] = useState<number | "">("");
+  const [draftTemplateId, setDraftTemplateId] = useState<number | "">("");
   const [templatesLoading, setTemplatesLoading] = useState(true);
-  const [queue, setQueue] = useState<QueueItem[]>([]);
+  const [draftGroupName, setDraftGroupName] = useState("DHL");
+  const [draftFiles, setDraftFiles] = useState<File[]>([]);
+  const [groups, setGroups] = useState<BatchGroup[]>([]);
   const [studioAuto, setStudioAuto] = useState(true);
   const [enhanceQuality, setEnhanceQuality] = useState(false);
   const [batchName, setBatchName] = useState("flowimage_resultados");
+  const [concurrency, setConcurrency] = useState(3);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,98 +66,221 @@ export function BatchProcess() {
     api.templates
       .list()
       .then((items) => {
+        const nextDefault = items.find((item) => item.status === "active")?.id ?? items[0]?.id ?? "";
         setTemplates(items);
-        setTemplateId(items.find((item) => item.status === "active")?.id ?? items[0]?.id ?? "");
+        setDefaultTemplateId(nextDefault);
+        setDraftTemplateId(nextDefault);
       })
       .catch((err) => setError(err.message))
       .finally(() => setTemplatesLoading(false));
   }, []);
 
-  const processedCount = useMemo(() => queue.filter((item) => item.status === "processed").length, [queue]);
-  const uploadAverage = useAverage(queue.map((item) => item.uploadProgress));
-  const processAverage = useAverage(queue.map((item) => item.processProgress));
+  const allItems = useMemo(() => groups.flatMap((group) => group.items), [groups]);
+  const processedCount = useMemo(() => allItems.filter((item) => item.status === "processed").length, [allItems]);
+  const failedCount = useMemo(() => allItems.filter((item) => item.status === "error").length, [allItems]);
+  const globalStats = useMemo(() => summarizeGroups(groups), [groups]);
 
-  const selectFiles = (files: File[]) => {
-    setQueue(files.map((file) => ({
-      key: `${file.name}-${file.size}-${file.lastModified}`,
-      file,
-      filename: file.name,
-      uploadProgress: 0,
-      processProgress: 0,
-      status: "selected",
-      error: null,
-    })));
-  };
-
-  const process = async (onlyKey?: string) => {
-    if (!templateId) {
-      setError("Selecione um molde antes de processar.");
+  const addGroup = () => {
+    if (!draftTemplateId && !defaultTemplateId) {
+      setError("Selecione um molde antes de criar o grupo.");
       return;
     }
-    if (queue.length === 0) {
-      setError("Selecione ao menos uma imagem antes de processar.");
+    if (draftFiles.length === 0) {
+      setError("Selecione ao menos uma imagem para o grupo.");
+      return;
+    }
+
+    const groupId = createId();
+    const groupName = draftGroupName.trim() || `Lote ${groups.length + 1}`;
+    const nextGroup: BatchGroup = {
+      id: groupId,
+      name: groupName,
+      templateId: draftTemplateId || defaultTemplateId,
+      status: "draft",
+      startedAt: null,
+      finishedAt: null,
+      items: draftFiles.map((file, index) => ({
+        key: `${groupId}-${index}-${file.name}-${file.size}-${file.lastModified}`,
+        file,
+        filename: file.name,
+        uploadProgress: 0,
+        processProgress: 0,
+        status: "selected",
+        error: null,
+      })),
+    };
+
+    setGroups((current) => [...current, nextGroup]);
+    setDraftFiles([]);
+    setDraftGroupName(`Lote ${groups.length + 2}`);
+    setError(null);
+  };
+
+  const processAllGroups = async () => {
+    const targetGroups = groups.filter((group) => group.items.length > 0 && group.templateId);
+    if (targetGroups.length === 0) {
+      setError("Crie ao menos um grupo com molde e imagens antes de processar.");
+      return;
+    }
+
+    setProcessing(true);
+    setError(null);
+    setGroups((current) =>
+      current.map((group) =>
+        targetGroups.some((target) => target.id === group.id)
+          ? { ...group, status: "queued", startedAt: null, finishedAt: null }
+          : group,
+      ),
+    );
+
+    try {
+      let cursor = 0;
+      const workers = Array.from({ length: Math.min(Math.max(concurrency, 1), targetGroups.length) }, async () => {
+        while (cursor < targetGroups.length) {
+          const group = targetGroups[cursor];
+          cursor += 1;
+          await processGroup(group);
+        }
+      });
+      await Promise.all(workers);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const processOneGroup = async (group: BatchGroup) => {
+    if (!group.templateId) {
+      setError("Selecione um molde para o grupo antes de processar.");
       return;
     }
     setProcessing(true);
     setError(null);
     try {
-      const targetItems = onlyKey ? queue.filter((item) => item.key === onlyKey) : queue;
-      const recoveryItems: QueueItem[] = [];
-      for (const [index, item] of targetItems.entries()) {
-        setQueueStatus(item.key, { status: "uploading", uploadProgress: 1, processProgress: 0, error: null, result: undefined });
+      await processGroup(group);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const processGroup = async (group: BatchGroup) => {
+    const templateId = Number(group.templateId);
+    const targetItems = group.items.filter((item) => item.status !== "processed");
+    const recoveryItems: QueueItem[] = [];
+    const failedKeys = new Set<string>();
+
+    setGroupPatch(group.id, { status: "processing", startedAt: Date.now(), finishedAt: null });
+
+    for (const [index, item] of targetItems.entries()) {
+      setGroupItemStatus(group.id, item.key, {
+        status: "uploading",
+        uploadProgress: 1,
+        processProgress: 0,
+        error: null,
+        result: undefined,
+      });
+      try {
+        const result = await processWithRetry(item, templateId, studioAuto, enhanceQuality, (key, patch) =>
+          setGroupItemStatus(group.id, key, patch),
+        );
+        setGroupItemStatus(group.id, item.key, {
+          status: "processed",
+          uploadProgress: 100,
+          processProgress: 100,
+          filename: result.filename,
+          result,
+          analysis: result.analysis,
+          error: null,
+        });
+      } catch (err) {
+        failedKeys.add(item.key);
+        setGroupItemStatus(group.id, item.key, {
+          status: "error",
+          uploadProgress: 100,
+          processProgress: 100,
+          error: err instanceof Error ? err.message : "Falha ao processar.",
+        });
+        if (isNetworkFailure(err)) recoveryItems.push(item);
+      }
+      if (index < targetItems.length - 1) await delay((index + 1) % 15 === 0 ? 9000 : 1200);
+    }
+
+    if (recoveryItems.length > 0) {
+      await delay(12000);
+      for (const item of recoveryItems) {
+        setGroupItemStatus(group.id, item.key, {
+          status: "uploading",
+          uploadProgress: 0,
+          processProgress: 0,
+          error: "Rodada final de recuperacao...",
+          result: undefined,
+        });
         try {
-          const result = await processWithRetry(item, Number(templateId), studioAuto, enhanceQuality, setQueueStatus);
-          setQueueStatus(item.key, {
+          const result = await processWithRetry(item, templateId, studioAuto, enhanceQuality, (key, patch) =>
+            setGroupItemStatus(group.id, key, patch),
+          );
+          setGroupItemStatus(group.id, item.key, {
             status: "processed",
             uploadProgress: 100,
             processProgress: 100,
             filename: result.filename,
             result,
             analysis: result.analysis,
+            error: null,
           });
+          failedKeys.delete(item.key);
         } catch (err) {
-          setQueueStatus(item.key, {
+          failedKeys.add(item.key);
+          setGroupItemStatus(group.id, item.key, {
             status: "error",
             uploadProgress: 100,
             processProgress: 100,
             error: err instanceof Error ? err.message : "Falha ao processar.",
           });
-          if (!onlyKey && isNetworkFailure(err)) recoveryItems.push(item);
         }
-        if (index < targetItems.length - 1) await delay((index + 1) % 15 === 0 ? 9000 : 1200);
+        await delay(2500);
       }
-      if (!onlyKey && recoveryItems.length > 0) {
-        await delay(12000);
-        for (const item of recoveryItems) {
-          setQueueStatus(item.key, {
-            status: "uploading",
-            uploadProgress: 0,
-            processProgress: 0,
-            error: "Rodada final de recuperacao...",
-            result: undefined,
-          });
-          try {
-            const result = await processWithRetry(item, Number(templateId), studioAuto, enhanceQuality, setQueueStatus);
-            setQueueStatus(item.key, {
-              status: "processed",
-              uploadProgress: 100,
-              processProgress: 100,
-              filename: result.filename,
-              result,
-              analysis: result.analysis,
-              error: null,
-            });
-          } catch (err) {
-            setQueueStatus(item.key, {
-              status: "error",
-              uploadProgress: 100,
-              processProgress: 100,
-              error: err instanceof Error ? err.message : "Falha ao processar.",
-            });
-          }
-          await delay(2500);
-        }
-      }
+    }
+
+    setGroupPatch(group.id, { status: failedKeys.size > 0 ? "error" : "processed", finishedAt: Date.now() });
+  };
+
+  const reprocessItem = async (group: BatchGroup, item: QueueItem) => {
+    if (!group.templateId) {
+      setError("Selecione um molde para o grupo antes de reprocessar.");
+      return;
+    }
+    setProcessing(true);
+    setError(null);
+    setGroupPatch(group.id, { status: "processing", startedAt: Date.now(), finishedAt: null });
+    setGroupItemStatus(group.id, item.key, {
+      status: "uploading",
+      uploadProgress: 1,
+      processProgress: 0,
+      error: null,
+      result: undefined,
+    });
+    try {
+      const result = await processWithRetry(item, Number(group.templateId), studioAuto, enhanceQuality, (key, patch) =>
+        setGroupItemStatus(group.id, key, patch),
+      );
+      setGroupItemStatus(group.id, item.key, {
+        status: "processed",
+        uploadProgress: 100,
+        processProgress: 100,
+        filename: result.filename,
+        result,
+        analysis: result.analysis,
+        error: null,
+      });
+      setGroupPatch(group.id, { status: "processed", finishedAt: Date.now() });
+    } catch (err) {
+      setGroupItemStatus(group.id, item.key, {
+        status: "error",
+        uploadProgress: 100,
+        processProgress: 100,
+        error: err instanceof Error ? err.message : "Falha ao processar.",
+      });
+      setGroupPatch(group.id, { status: "error", finishedAt: Date.now() });
     } finally {
       setProcessing(false);
     }
@@ -137,11 +288,20 @@ export function BatchProcess() {
 
   const exportZip = async () => {
     const zip = new JSZip();
-    const usedNames = new Set<string>();
-    const exportItems = queue.filter((item) => item.result);
-    exportItems.forEach((item) => {
-      zip.file(uniqueArchiveName(item.result!.filename, usedNames), item.result!.blob);
+    const usedFolders = new Set<string>();
+
+    groups.forEach((group) => {
+      const exportItems = group.items.filter((item) => item.result);
+      if (exportItems.length === 0) return;
+
+      const folderName = uniqueArchiveName(sanitizeZipName(group.name), usedFolders);
+      const folder = zip.folder(folderName);
+      const usedNames = new Set<string>();
+      exportItems.forEach((item) => {
+        folder?.file(uniqueArchiveName(item.result!.filename, usedNames), item.result!.blob);
+      });
     });
+
     const blob = await zip.generateAsync({ type: "blob" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -151,10 +311,37 @@ export function BatchProcess() {
     URL.revokeObjectURL(url);
   };
 
-  const setQueueStatus = (key: string, patch: Partial<QueueItem>) => {
-    setQueue((current) => current.map((item) => (item.key === key ? { ...item, ...patch } : item)));
+  const setGroupPatch = (groupId: string, patch: Partial<BatchGroup>) => {
+    setGroups((current) => current.map((group) => (group.id === groupId ? { ...group, ...patch } : group)));
   };
-  const removeItem = (key: string) => setQueue((current) => current.filter((item) => item.key !== key));
+
+  const setGroupItemStatus = (groupId: string, key: string, patch: Partial<QueueItem>) => {
+    setGroups((current) =>
+      current.map((group) =>
+        group.id === groupId
+          ? { ...group, items: group.items.map((item) => (item.key === key ? { ...item, ...patch } : item)) }
+          : group,
+      ),
+    );
+  };
+
+  const updateGroupTemplate = (groupId: string, templateId: number | "") => {
+    setGroups((current) => current.map((group) => (group.id === groupId ? { ...group, templateId } : group)));
+  };
+
+  const removeGroup = (groupId: string) => {
+    setGroups((current) => current.filter((group) => group.id !== groupId));
+  };
+
+  const removeItem = (groupId: string, key: string) => {
+    setGroups((current) =>
+      current
+        .map((group) =>
+          group.id === groupId ? { ...group, items: group.items.filter((item) => item.key !== key) } : group,
+        )
+        .filter((group) => group.items.length > 0),
+    );
+  };
 
   return (
     <div className="grid gap-6">
@@ -162,116 +349,244 @@ export function BatchProcess() {
         <div>
           <div className="toolbar-title">Processamento em lote</div>
         </div>
-        <div className="rounded-full bg-violet-50 px-3 py-1 text-xs font-bold text-violet-700">{processedCount}/{queue.length} processadas</div>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="rounded-full bg-violet-50 px-3 py-1 text-xs font-bold text-violet-700">
+            {processedCount}/{allItems.length} processadas
+          </div>
+          {failedCount > 0 ? (
+            <div className="rounded-full bg-red-50 px-3 py-1 text-xs font-bold text-red-700">{failedCount} falhas</div>
+          ) : null}
+        </div>
       </div>
 
       {error ? <div className="rounded-lg border border-red-200 bg-red-50/90 p-3 text-sm font-semibold text-danger">{error}</div> : null}
 
       <section className="control-panel">
-        <div className="grid gap-4 xl:grid-cols-[minmax(220px,1fr)_minmax(220px,1fr)_minmax(260px,1.2fr)_auto] xl:items-end">
+        <div className="grid gap-4 xl:grid-cols-[minmax(190px,0.8fr)_minmax(220px,1fr)_minmax(180px,0.7fr)_minmax(260px,1.1fr)_auto] xl:items-end">
+          <Field
+            label="Nome do grupo"
+            value={draftGroupName}
+            disabled={processing}
+            onChange={(event) => setDraftGroupName(event.target.value)}
+          />
+
           <SelectField
-            label="Molde"
-            value={templateId}
+            label="Molde do grupo"
+            value={draftTemplateId}
             disabled={templatesLoading || processing}
-            onChange={(event) => setTemplateId(event.target.value ? Number(event.target.value) : "")}
+            onChange={(event) => setDraftTemplateId(event.target.value ? Number(event.target.value) : "")}
           >
             <option value="">{templatesLoading ? "Carregando moldes..." : "Selecione um molde"}</option>
             {templates.map((template) => (
-              <option key={template.id} value={template.id}>{template.name}</option>
+              <option key={template.id} value={template.id}>
+                {template.name}
+              </option>
             ))}
           </SelectField>
 
-          <Field label="Nome do lote" value={batchName} disabled={processing} onChange={(event) => setBatchName(event.target.value)} />
+          <SelectField
+            label="Grupos em paralelo"
+            value={concurrency}
+            disabled={processing}
+            onChange={(event) => setConcurrency(Number(event.target.value))}
+          >
+            {[1, 2, 3, 4, 5].map((value) => (
+              <option key={value} value={value}>
+                {value} por vez
+              </option>
+            ))}
+          </SelectField>
 
           <label className="focus-ring flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-violet-300 bg-violet-50 px-4 py-2 text-center text-sm font-medium text-violet-700 transition hover:bg-violet-100">
             <ImagePlus size={20} />
-            <span>{queue.length ? `${queue.length} imagens selecionadas` : "Selecionar imagens"}</span>
+            <span>{draftFiles.length ? `${draftFiles.length} imagens no grupo` : "Selecionar imagens do grupo"}</span>
             <input
               className="sr-only"
               type="file"
               accept="image/*"
               multiple
               disabled={processing}
-              onChange={(event) => selectFiles(Array.from(event.target.files ?? []))}
+              onChange={(event) => {
+                setDraftFiles(Array.from(event.target.files ?? []));
+                event.target.value = "";
+              }}
             />
           </label>
 
           <div className="flex flex-wrap gap-2 xl:justify-end">
-            <Button disabled={!templateId || queue.length === 0 || processing} onClick={() => process()} icon={<UploadCloud size={18} />}>
-              {processing ? "Processando..." : "Enviar e processar"}
-            </Button>
-            <Button disabled={processedCount === 0 || processing} onClick={exportZip} variant="secondary" icon={<Archive size={18} />}>
-              Exportar ZIP
+            <Button disabled={draftFiles.length === 0 || processing} onClick={addGroup} icon={<Plus size={18} />}>
+              Adicionar grupo
             </Button>
           </div>
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-[1fr_1fr_auto_auto] lg:items-center">
-          <ProgressBlock label="Upload geral" value={uploadAverage} />
-          <ProgressBlock label="Processamento geral" value={processAverage} />
+        <div className="grid gap-4 lg:grid-cols-[minmax(180px,0.7fr)_minmax(180px,0.7fr)_minmax(180px,0.7fr)_minmax(220px,1fr)_auto_auto] lg:items-end">
+          <ProgressBlock label="Upload geral" value={globalStats.uploadAverage} eta={globalStats.uploadEtaSeconds} />
+          <ProgressBlock label="Processo geral" value={globalStats.processAverage} eta={globalStats.processEtaSeconds} />
+          <ProgressBlock label="Total estimado" value={globalStats.overallProgress} eta={globalStats.etaSeconds} />
 
-          <label className="flex min-h-12 cursor-pointer items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white px-3">
-            <span>
-              <span className="block text-sm font-medium text-gray-900">Studio automatico</span>
-            </span>
-            <input
-              className="h-5 w-5 accent-violet-700"
-              type="checkbox"
-              checked={studioAuto}
-              disabled={processing}
-              onChange={(event) => setStudioAuto(event.target.checked)}
-            />
-          </label>
+          <Field label="Nome do ZIP" value={batchName} disabled={processing} onChange={(event) => setBatchName(event.target.value)} />
 
-          <label className="flex min-h-12 cursor-pointer items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white px-3">
-            <span>
-              <span className="block text-sm font-medium text-gray-900">Melhorar pixels</span>
-            </span>
-            <input
-              className="h-5 w-5 accent-purple-700"
-              type="checkbox"
-              checked={enhanceQuality}
-              disabled={processing}
-              onChange={(event) => setEnhanceQuality(event.target.checked)}
-            />
-          </label>
+          <Button disabled={groups.length === 0 || processing} onClick={processAllGroups} icon={<UploadCloud size={18} />}>
+            {processing ? "Processando..." : "Processar grupos"}
+          </Button>
+          <Button disabled={processedCount === 0 || processing} onClick={exportZip} variant="secondary" icon={<Archive size={18} />}>
+            Exportar ZIP
+          </Button>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-2">
+          <ToggleOption label="Studio automatico" checked={studioAuto} disabled={processing} onChange={setStudioAuto} />
+          <ToggleOption label="Melhorar pixels" checked={enhanceQuality} disabled={processing} onChange={setEnhanceQuality} />
         </div>
       </section>
 
-      <section className="glass-panel overflow-hidden">
-        <div className="overflow-x-auto">
-          <div className="grid min-w-[720px] grid-cols-[minmax(0,1fr)_170px_150px] gap-3 bg-gray-900 px-3 py-2 text-xs font-bold uppercase text-white">
-            <span>Imagem</span>
-            <span>Qualidade</span>
-            <span>Acoes</span>
-          </div>
-          <div className="min-w-[720px] divide-y divide-line/70 bg-white">
-            {queue.map((item) => (
-              <div key={item.key} className="grid grid-cols-[minmax(0,1fr)_170px_150px] items-center gap-3 px-3 py-3 text-sm">
+      <section className="grid gap-4">
+        {groups.map((group) => {
+          const stats = getGroupStats(group);
+          const template = templates.find((item) => item.id === Number(group.templateId));
+          return (
+            <article key={group.id} className="glass-panel overflow-hidden">
+              <div className="grid gap-4 border-b border-line bg-white px-4 py-4 xl:grid-cols-[minmax(0,1fr)_240px_190px_auto] xl:items-end">
                 <div className="min-w-0">
-                  <div className="truncate font-bold">{item.filename}</div>
-                  <div className="mt-1 text-xs font-semibold text-steel">{statusLabel(item.status)}</div>
-                  {item.error ? <div className="mt-1 truncate text-xs font-semibold text-danger">{item.error}</div> : null}
-                  <MiniProgress label="Upload" value={item.uploadProgress} />
-                  <MiniProgress label="Processo" value={item.processProgress} />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Layers3 size={18} className="text-violet-700" />
+                    <h3 className="truncate text-base font-black text-gray-950">{group.name}</h3>
+                    <span className="rounded-full bg-gray-100 px-2 py-1 text-[11px] font-black uppercase text-steel">
+                      {groupStatusLabel(group.status)}
+                    </span>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold text-steel">
+                    <span>{stats.total} imagens</span>
+                    <span>{stats.processed} concluidas</span>
+                    {stats.failed > 0 ? <span className="text-danger">{stats.failed} falhas</span> : null}
+                    <span>{template?.name ?? "Sem molde"}</span>
+                  </div>
                 </div>
-                <QualityCell item={item} />
-                <div className="flex flex-wrap items-center gap-2">
-                  {item.result ? <a className="text-xs font-bold text-action" href={item.result.url} download={item.result.filename}>baixar</a> : null}
-                  <button className="rounded-md border border-line bg-white p-1 text-steel" type="button" title="Reprocessar" disabled={processing} onClick={() => process(item.key)}>
-                    <RefreshCcw size={15} />
-                  </button>
-                  <button className="rounded-md border border-red-200 bg-white p-1 text-danger" type="button" title="Remover" disabled={processing} onClick={() => removeItem(item.key)}>
-                    <Trash2 size={15} />
+
+                <SelectField
+                  label="Molde"
+                  value={group.templateId}
+                  disabled={templatesLoading || processing}
+                  onChange={(event) => updateGroupTemplate(group.id, event.target.value ? Number(event.target.value) : "")}
+                >
+                  <option value="">{templatesLoading ? "Carregando..." : "Selecione"}</option>
+                  {templates.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name}
+                    </option>
+                  ))}
+                </SelectField>
+
+                <div className="grid gap-1 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-semibold text-steel">
+                  <span>Tempo decorrido: {formatDuration(stats.elapsedSeconds)}</span>
+                  <span>ETA upload: {formatDuration(stats.uploadEtaSeconds)}</span>
+                  <span>ETA processo: {formatDuration(stats.processEtaSeconds)}</span>
+                </div>
+
+                <div className="flex flex-wrap gap-2 xl:justify-end">
+                  <Button disabled={processing || !group.templateId} onClick={() => processOneGroup(group)} icon={<Play size={16} />}>
+                    Processar
+                  </Button>
+                  <button
+                    className="focus-ring inline-flex min-h-11 items-center justify-center rounded-lg border border-gray-200 bg-white px-3 text-gray-600 transition hover:bg-gray-50"
+                    type="button"
+                    title="Remover grupo"
+                    disabled={processing}
+                    onClick={() => removeGroup(group.id)}
+                  >
+                    <X size={18} />
                   </button>
                 </div>
               </div>
-            ))}
-            {queue.length === 0 ? <div className="p-8 text-center text-sm font-semibold text-steel">Nenhuma imagem selecionada.</div> : null}
+
+              <div className="grid gap-3 bg-gray-50 px-4 py-4 md:grid-cols-3">
+                <ProgressBlock label="Upload do grupo" value={stats.uploadAverage} eta={stats.uploadEtaSeconds} compact />
+                <ProgressBlock label="Processo do grupo" value={stats.processAverage} eta={stats.processEtaSeconds} compact />
+                <ProgressBlock label="Total do grupo" value={stats.overallProgress} eta={stats.etaSeconds} compact />
+              </div>
+
+              <div className="overflow-x-auto">
+                <div className="grid min-w-[780px] grid-cols-[minmax(0,1fr)_170px_150px] gap-3 bg-gray-900 px-3 py-2 text-xs font-bold uppercase text-white">
+                  <span>Imagem</span>
+                  <span>Qualidade</span>
+                  <span>Acoes</span>
+                </div>
+                <div className="min-w-[780px] divide-y divide-line/70 bg-white">
+                  {group.items.map((item) => (
+                    <div key={item.key} className="grid grid-cols-[minmax(0,1fr)_170px_150px] items-center gap-3 px-3 py-3 text-sm">
+                      <div className="min-w-0">
+                        <div className="truncate font-bold">{item.filename}</div>
+                        <div className="mt-1 text-xs font-semibold text-steel">{statusLabel(item.status)}</div>
+                        {item.error ? <div className="mt-1 truncate text-xs font-semibold text-danger">{item.error}</div> : null}
+                        <MiniProgress label="Upload" value={item.uploadProgress} />
+                        <MiniProgress label="Processo" value={item.processProgress} />
+                      </div>
+                      <QualityCell item={item} />
+                      <div className="flex flex-wrap items-center gap-2">
+                        {item.result ? (
+                          <a className="text-xs font-bold text-action" href={item.result.url} download={item.result.filename}>
+                            baixar
+                          </a>
+                        ) : null}
+                        <button
+                          className="rounded-md border border-line bg-white p-1 text-steel"
+                          type="button"
+                          title="Reprocessar"
+                          disabled={processing}
+                          onClick={() => reprocessItem(group, item)}
+                        >
+                          <RefreshCcw size={15} />
+                        </button>
+                        <button
+                          className="rounded-md border border-red-200 bg-white p-1 text-danger"
+                          type="button"
+                          title="Remover"
+                          disabled={processing}
+                          onClick={() => removeItem(group.id, item.key)}
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </article>
+          );
+        })}
+        {groups.length === 0 ? (
+          <div className="glass-panel p-8 text-center text-sm font-semibold text-steel">
+            Nenhum grupo criado. Selecione imagens, defina o grupo e clique em Adicionar grupo.
           </div>
-        </div>
+        ) : null}
       </section>
     </div>
+  );
+}
+
+function ToggleOption({
+  label,
+  checked,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  disabled: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <label className="flex min-h-12 cursor-pointer items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white px-3">
+      <span className="block text-sm font-medium text-gray-900">{label}</span>
+      <input
+        className="h-5 w-5 accent-violet-700"
+        type="checkbox"
+        checked={checked}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.checked)}
+      />
+    </label>
   );
 }
 
@@ -282,7 +597,7 @@ function QualityCell({ item }: { item: QueueItem }) {
   return (
     <div className="min-w-0 text-xs">
       <div className={`font-black ${color}`}>Score {quality.score}</div>
-      <div className="mt-1 truncate font-semibold text-steel">{quality.warnings.length ? quality.warnings.join(" · ") : "Sem alertas"}</div>
+      <div className="mt-1 truncate font-semibold text-steel">{quality.warnings.length ? quality.warnings.join(" | ") : "Sem alertas"}</div>
     </div>
   );
 }
@@ -292,13 +607,13 @@ async function processWithRetry(
   templateId: number,
   studioAuto: boolean,
   enhanceQuality: boolean,
-  setQueueStatus: (key: string, patch: Partial<QueueItem>) => void,
+  setItemStatus: (key: string, patch: Partial<QueueItem>) => void,
 ) {
   const delays = [0, 1500, 3500, 6500];
   let lastError: unknown;
   for (let attempt = 0; attempt < delays.length; attempt += 1) {
     if (delays[attempt] > 0) {
-      setQueueStatus(item.key, {
+      setItemStatus(item.key, {
         status: "uploading",
         uploadProgress: 0,
         processProgress: 0,
@@ -312,7 +627,7 @@ async function processWithRetry(
         item.file,
         null,
         (progress) => {
-          setQueueStatus(item.key, {
+          setItemStatus(item.key, {
             uploadProgress: progress,
             status: progress < 100 ? "uploading" : "processing",
             processProgress: progress >= 100 ? 35 : 0,
@@ -328,6 +643,60 @@ async function processWithRetry(
     }
   }
   throw lastError instanceof Error ? lastError : new Error("Falha de rede durante processamento.");
+}
+
+function summarizeGroups(groups: BatchGroup[]): GroupStats {
+  const allItems = groups.flatMap((group) => group.items);
+  const startedAt = groups
+    .map((group) => group.startedAt)
+    .filter((value): value is number => Boolean(value))
+    .sort((a, b) => a - b)[0];
+  const activeGroups = groups.filter((group) => group.status === "processing" || group.status === "queued");
+  const finishedAt = activeGroups.length > 0 ? null : Math.max(0, ...groups.map((group) => group.finishedAt ?? 0));
+  return getStats(allItems, startedAt ?? null, finishedAt || null);
+}
+
+function getGroupStats(group: BatchGroup): GroupStats {
+  return getStats(group.items, group.startedAt ?? null, group.finishedAt ?? null);
+}
+
+function getStats(items: QueueItem[], startedAt: number | null, finishedAt: number | null): GroupStats {
+  const total = items.length;
+  const processed = items.filter((item) => item.status === "processed").length;
+  const failed = items.filter((item) => item.status === "error").length;
+  const uploadAverage = average(items.map((item) => item.uploadProgress));
+  const processAverage = average(items.map((item) => item.processProgress));
+  const overallProgress = average(items.map(itemOverallProgress));
+  const elapsedSeconds = startedAt ? Math.max(0, Math.round(((finishedAt ?? Date.now()) - startedAt) / 1000)) : null;
+  return {
+    total,
+    processed,
+    failed,
+    uploadAverage,
+    processAverage,
+    overallProgress,
+    elapsedSeconds,
+    etaSeconds: estimateSeconds(overallProgress, elapsedSeconds),
+    uploadEtaSeconds: estimateSeconds(uploadAverage, elapsedSeconds),
+    processEtaSeconds: estimateSeconds(processAverage, elapsedSeconds),
+  };
+}
+
+function itemOverallProgress(item: QueueItem) {
+  if (item.status === "processed" || item.status === "error") return 100;
+  if (item.status === "processing") return 50 + Math.round(item.processProgress * 0.5);
+  if (item.status === "uploading") return Math.round(item.uploadProgress * 0.5);
+  return 0;
+}
+
+function estimateSeconds(progress: number, elapsedSeconds: number | null) {
+  if (!elapsedSeconds || progress <= 0 || progress >= 100) return null;
+  return Math.max(1, Math.round((elapsedSeconds * (100 - progress)) / progress));
+}
+
+function average(values: number[]) {
+  if (values.length === 0) return 0;
+  return Math.round(values.reduce((total, value) => total + value, 0) / values.length);
 }
 
 function isNetworkFailure(error: unknown) {
@@ -361,23 +730,38 @@ function sanitizeZipName(name: string) {
   return name.trim().replace(/[\\/:*?"<>|\u0000-\u001f]/g, "_").replace(/[. ]+$/g, "") || "flowimage_resultados";
 }
 
-function useAverage(values: number[]) {
-  return useMemo(() => {
-    if (values.length === 0) return 0;
-    return Math.round(values.reduce((total, value) => total + value, 0) / values.length);
-  }, [values]);
+function formatDuration(seconds: number | null) {
+  if (!seconds) return "--";
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  const rest = seconds % 60;
+  if (minutes < 60) return rest ? `${minutes}m ${rest}s` : `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  const minuteRest = minutes % 60;
+  return minuteRest ? `${hours}h ${minuteRest}m` : `${hours}h`;
 }
 
-function ProgressBlock({ label, value }: { label: string; value: number }) {
+function createId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function ProgressBlock({ label, value, eta, compact = false }: { label: string; value: number; eta?: number | null; compact?: boolean }) {
   return (
-    <div className="rounded-xl bg-white/75 p-3 shadow-sm">
-      <div className="mb-2 flex items-center justify-between text-xs font-black uppercase text-steel">
-        <span>{label}</span>
+    <div className={`rounded-xl bg-white/75 p-3 shadow-sm ${compact ? "border border-gray-200" : ""}`}>
+      <div className="mb-2 flex items-center justify-between gap-3 text-xs font-black uppercase text-steel">
+        <span className="truncate">{label}</span>
         <span>{value}%</span>
       </div>
       <div className="h-2 overflow-hidden rounded-full bg-slate-200">
         <div className="h-full rounded-full bg-gradient-to-r from-violet-700 to-fuchsia-500" style={{ width: `${value}%` }} />
       </div>
+      {eta !== undefined ? (
+        <div className="mt-2 flex items-center gap-1 text-[11px] font-bold text-steel">
+          <Clock3 size={12} />
+          <span>ETA {formatDuration(eta ?? null)}</span>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -401,8 +785,19 @@ function statusLabel(status: QueueStatus) {
     selected: "Aguardando",
     uploading: "Enviando",
     processing: "Processando",
-    processed: "Processada em memória",
+    processed: "Processada em memoria",
     error: "Erro",
+  };
+  return labels[status];
+}
+
+function groupStatusLabel(status: GroupStatus) {
+  const labels: Record<GroupStatus, string> = {
+    draft: "Preparado",
+    queued: "Na fila",
+    processing: "Processando",
+    processed: "Concluido",
+    error: "Com falhas",
   };
   return labels[status];
 }
